@@ -253,11 +253,13 @@ Language: ${request.language}
 
 Requirements:
 1. Use Page Object Model pattern
-2. Follow existing code conventions
-3. Include proper error handling
-4. Add meaningful assertions
-5. Use data-test attributes for selectors
-6. Follow TypeScript best practices
+2. Use TestDataManager.getInstance().getUserCredentials('standard') to get test credentials
+3. Do NOT hardcode usernames or passwords
+4. Follow existing code conventions
+5. Include proper error handling
+6. Add meaningful assertions
+7. Use data-test attributes for selectors
+8. Follow TypeScript best practices
 
 Generate the code:
         `;

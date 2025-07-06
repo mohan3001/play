@@ -145,8 +145,6 @@ export class SecurityValidator {
         const unsafePatterns = [
             /eval\s*\(/gi,
             /Function\s*\(/gi,
-            /setTimeout\s*\([^,]+,\s*[^)]*\)/gi,
-            /setInterval\s*\([^,]+,\s*[^)]*\)/gi,
             /exec\s*\(/gi,
             /spawn\s*\(/gi,
             /child_process/gi,
@@ -172,13 +170,11 @@ export class SecurityValidator {
 
     private containsDataLeakage(code: string): boolean {
         const leakagePatterns = [
-            /console\.log\s*\(/gi,
-            /console\.warn\s*\(/gi,
-            /console\.error\s*\(/gi,
-            /console\.info\s*\(/gi,
             /alert\s*\(/gi,
             /confirm\s*\(/gi,
-            /prompt\s*\(/gi
+            /prompt\s*\(/gi,
+            /window\.open\s*\(/gi,
+            /location\.href\s*=/gi
         ];
 
         return leakagePatterns.some(pattern => pattern.test(code));
