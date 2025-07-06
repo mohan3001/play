@@ -4,16 +4,17 @@
   "description": "AI-powered test automation layer for Playwright",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsc",
-    "dev": "ts-node src/index.ts",
-    "start": "node dist/index.js",
-    "test": "jest",
-    "lint": "eslint src/**/*.ts",
-    "format": "prettier --write src/**/*.ts",
-    "generate": "ts-node src/cli/generate.ts",
-    "chat": "ts-node src/cli/chat.ts"
-  },
+      "scripts": {
+        "build": "tsc",
+        "dev": "ts-node src/index.ts",
+        "start": "node dist/index.js",
+        "test": "jest",
+        "lint": "eslint src/**/*.ts",
+        "format": "prettier --write src/**/*.ts",
+        "generate": "ts-node src/cli/generate.ts",
+        "chat": "ts-node src/cli/chat.ts",
+        "analyze": "ts-node src/cli/analyze.ts"
+    },
   "keywords": [
     "playwright",
     "ai",
