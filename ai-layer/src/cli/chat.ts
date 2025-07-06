@@ -6,7 +6,7 @@ import inquirer from 'inquirer';
 async function chat() {
     console.log('🤖 Welcome to Playwright AI Chat!');
     console.log('Type "exit" to quit');
-    console.log('Special commands: "count tests", "analyze framework", "coverage", "run login feature", "count feature files"\n');
+    console.log('Special commands: "count tests/test", "analyze framework", "coverage", "run login feature", "count feature files"\n');
 
     const aiLayer = new AILayer();
 
@@ -33,7 +33,7 @@ async function chat() {
         // Handle special commands
         const lowerMessage = message.toLowerCase();
         
-        if (lowerMessage === 'count tests' || lowerMessage === 'analyze framework' || lowerMessage === 'analyse framework') {
+        if (lowerMessage === 'count tests' || lowerMessage === 'count test' || lowerMessage === 'analyze framework' || lowerMessage === 'analyse framework') {
             try {
                 console.log('🔍 Analyzing framework...\n');
                 
