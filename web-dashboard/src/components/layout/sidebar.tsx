@@ -4,28 +4,25 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { 
-  LayoutDashboard, 
-  Play, 
-  MessageSquare, 
-  FileText, 
-  BarChart3, 
-  Settings, 
+  Home,
+  MessageSquare,
+  FileText,
+  BarChart3,
   GitBranch,
   Bot,
   TestTube,
-  FolderOpen
+  FolderOpen,
+  BracketsIcon
 } from "lucide-react"
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Test Execution', href: '/execution', icon: Play },
+  { name: 'Dashboard', href: '/', icon: Home },
   { name: 'AI Chat', href: '/chat', icon: MessageSquare },
   { name: 'Test Management', href: '/tests', icon: FileText },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Git Integration', href: '/git', icon: GitBranch },
+  { name: 'Git Integration', href: '/git', icon: BracketsIcon },
   { name: 'AI Workflows', href: '/workflows', icon: Bot },
   { name: 'Test Files', href: '/files', icon: FolderOpen },
-  { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
 export function Sidebar() {

@@ -43,8 +43,8 @@ export class AIService {
       logger.info(`Processing AI chat message: ${message}`)
       
       // Call the real AI layer
-      const aiLayerPath = path.join(process.cwd(), '..', 'ai-layer')
-      const response = await this.runCommandInAILayer(message, aiLayerPath)
+      const workingDirectory = await this.getWorkingDirectory()
+      const response = await this.runCommandInAILayer(message, workingDirectory)
       
       return {
         message: response,
@@ -66,8 +66,8 @@ export class AIService {
       logger.info(`Executing AI command: ${command}`)
       
       // Execute the command in the AI layer
-      const aiLayerPath = path.join(process.cwd(), '..', 'ai-layer')
-      const result = await this.runCommandInAILayer(command, aiLayerPath)
+      const workingDirectory = await this.getWorkingDirectory()
+      const result = await this.runCommandInAILayer(command, workingDirectory)
       
       return {
         message: result,
@@ -106,10 +106,25 @@ export class AIService {
         if (code === 0) {
           resolve(output)
         } else {
-          reject(new Error(`Command failed with code ${code}: ${errorOutput}`))
+          reject(new Error(`Command failed with code ${code}: ${errorOutput || 'Command Execution Error'}`))
         }
       })
     })
+  }
+
+  private async getWorkingDirectory(): Promise<string> {
+    try {
+      const response = await fetch('http://localhost:3001/api/git/working-directory')
+      if (response.ok) {
+        const data = await response.json() as { workingDirectory: string }
+        return data.workingDirectory
+      }
+    } catch (error) {
+      console.warn('Failed to get linked repo, using default automation directory')
+    }
+    
+    // Fallback to default automation directory
+    return path.join(__dirname, '../../../automation')
   }
 
   public getConnectionStatus(): boolean {

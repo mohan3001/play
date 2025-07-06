@@ -15,6 +15,7 @@ import { aiRoutes } from './routes/ai'
 import { testRoutes } from './routes/tests'
 import { analyticsRoutes } from './routes/analytics'
 import { executionRoutes } from './routes/execution'
+import gitRoutes from './routes/git'
 // import { WebSocketManager } from './services/websocket'
 import { AIService } from './services/ai'
 import { TestExecutionService } from './services/testExecution'
@@ -71,6 +72,7 @@ app.use('/api/ai', aiRoutes)
 app.use('/api/tests', testRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/execution', executionRoutes)
+app.use('/api/git', gitRoutes)
 
 // WebSocket connection
 // const wsManager = new WebSocketManager(io)

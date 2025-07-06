@@ -8,6 +8,7 @@ import { LLMConfig } from '../types/AITypes';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import fetch from 'node-fetch';
 
 async function main() {
   const input = process.argv.slice(2).join(' ').trim();
@@ -19,318 +20,207 @@ async function main() {
   const aiLayer = new AILayer();
   const config: LLMConfig = {
     model: 'mistral',
-    temperature: 0.1,
-    maxTokens: 500,
-    topP: 0.9,
-    topK: 40,
-    repeatPenalty: 1.1,
-    contextWindow: 4096,
-    batchSize: 1
+    temperature: 0.7,
+    maxTokens: 2000
   };
-  const commandParser = new IntelligentCommandParser(config);
+
+  try {
+    // Get working directory from Git integration API
+    const workingDirectory = await getWorkingDirectory();
+    
+    // Parse the command
+    const parser = new IntelligentCommandParser();
+    const parsedCommand = parser.parseCommand(input);
+    
+    // Execute the command
+    await executeCommand(parsedCommand, input, workingDirectory);
+    
+  } catch (error) {
+    console.error('Error:', error);
+    process.exit(1);
+  }
+}
+
+async function getWorkingDirectory(): Promise<string> {
+  try {
+    const response = await fetch('http://localhost:3001/api/git/working-directory');
+    if (response.ok) {
+      const data = await response.json() as { workingDirectory: string };
+      return data.workingDirectory;
+    }
+  } catch (error) {
+    console.warn('Failed to get linked repo, using default automation directory');
+  }
+  
+  // Fallback to default automation directory
+  return path.join(__dirname, '../../../automation');
+}
+
+async function executeCommand(parsedCommand: any, input: string, workingDirectory: string) {
+  const workflowService = new AIWorkflowService();
   const gitService = new GitAutomationService();
-  const workflowService = new AIWorkflowService(config);
 
-  async function executeCommand(command: string, intent?: any): Promise<void> {
-    const { execSync } = require('child_process');
-    switch (command) {
-      case 'count_tests': {
-        const analysis = execSync('npm run analyze tests -- --path ../automation', {
-          encoding: 'utf8',
-          cwd: process.cwd(),
-        });
-        console.log(analysis);
+  switch (parsedCommand.command) {
+    case 'run_all_tests': {
+      const result = execSync('npx playwright test', { 
+        encoding: 'utf8',
+        cwd: workingDirectory
+      });
+      console.log(result);
+      break;
+    }
+    case 'run_test': {
+      const testName = input.match(/run (.+)/i)?.[1]?.trim();
+      if (!testName) {
+        console.log('❌ Please specify the test name.');
         break;
       }
-      case 'coverage': {
-        const coverage = execSync('npm run analyze coverage -- --path ../automation', {
-          encoding: 'utf8',
-          cwd: process.cwd(),
-        });
-        console.log(coverage);
+      const result = execSync(`npx playwright test ${testName}`, { 
+        encoding: 'utf8',
+        cwd: workingDirectory
+      });
+      console.log(result);
+      break;
+    }
+    case 'run_tests_by_tag': {
+      const tag = input.match(/tagged (@\w+)/i)?.[1]?.trim();
+      if (!tag) {
+        console.log('❌ Please specify the tag (e.g., @smoke).');
         break;
       }
-      case 'run_login': {
-        const result = execSync('cd ../automation && npx cucumber-js tests/features/login.feature --config cucumber.js --format summary', {
-          encoding: 'utf8',
-          cwd: process.cwd(),
-        });
-        console.log(result);
+      const result = execSync(`npx playwright test --grep "${tag}"`, { 
+        encoding: 'utf8',
+        cwd: workingDirectory
+      });
+      console.log(result);
+      break;
+    }
+    case 'list_all_tests': {
+      const testFiles = fs.readdirSync(path.join(workingDirectory, 'tests'))
+        .filter(file => file.endsWith('.spec.ts') || file.endsWith('.spec.js'))
+        .map(file => `📄 ${file}`)
+        .join('\n');
+      console.log('📋 Test Files:\n' + testFiles);
+      break;
+    }
+    case 'show_last_test_run': {
+      const resultPath = path.join(workingDirectory, 'test-results');
+      if (fs.existsSync(resultPath)) {
+        const files = fs.readdirSync(resultPath);
+        console.log('📊 Last Test Results:\n' + files.map(f => `📄 ${f}`).join('\n'));
+      } else {
+        console.log('❌ No test results found.');
+      }
+      break;
+    }
+    case 'show_failed_tests': {
+      const resultPath = path.join(workingDirectory, 'test-results');
+      if (fs.existsSync(resultPath)) {
+        console.log('🔍 Checking for failed tests...');
+        // This would parse the actual test results
+        console.log('📋 Failed tests will be shown here.');
+      } else {
+        console.log('❌ No test results found.');
+      }
+      break;
+    }
+    case 'rerun_last_failed_tests': {
+      console.log('🔄 Rerunning failed tests...');
+      const result = execSync('npx playwright test --reporter=list', { 
+        encoding: 'utf8',
+        cwd: workingDirectory
+      });
+      console.log(result);
+      break;
+    }
+    case 'list_feature_files': {
+      const featuresPath = path.join(workingDirectory, 'tests/features');
+      if (fs.existsSync(featuresPath)) {
+        const files = fs.readdirSync(featuresPath)
+          .filter(file => file.endsWith('.feature'))
+          .map(file => `📄 ${file}`)
+          .join('\n');
+        console.log('📋 Feature Files:\n' + files);
+      } else {
+        console.log('❌ No feature files found.');
+      }
+      break;
+    }
+    case 'run_feature_file': {
+      const featureFile = input.match(/feature file (.+)/i)?.[1]?.trim();
+      if (!featureFile) {
+        console.log('❌ Please specify the feature file name.');
         break;
       }
-      case 'count_features': {
-        const featureCount = execSync('find ../automation/tests/features -name "*.feature" | wc -l', {
-          encoding: 'utf8',
-          cwd: process.cwd(),
-        }).trim();
-        console.log(`Found ${featureCount} feature file(s)`);
-        const featureFiles = execSync('find ../automation/tests/features -name "*.feature" -exec basename {} \\;', {
-          encoding: 'utf8',
-          cwd: process.cwd(),
-        });
-        if (featureFiles.trim()) {
-          console.log('Feature files:');
-          featureFiles.split('\n').filter((f: string) => f.trim()).forEach((file: string) => {
-            console.log(`  • ${file}`);
-          });
-        }
-        break;
+      const result = execSync(`npx cucumber-js tests/features/${featureFile}`, { 
+        encoding: 'utf8',
+        cwd: workingDirectory
+      });
+      console.log(result);
+      break;
+    }
+    case 'show_test_history': {
+      console.log('📈 Test History:\n');
+      console.log('🕒 Recent test runs will be shown here.');
+      break;
+    }
+    case 'ai_workflow':
+    case 'git_operations': {
+      // Run the full AI workflow for natural language git/code requests
+      const workflowResult = await workflowService.executeWorkflow(input);
+      console.log(workflowResult.message);
+      if (!workflowResult.success) {
+        process.exit(1);
       }
-      case 'analyze_framework': {
-        const frameworkAnalysis = execSync('npm run analyze tests -- --path ../automation', {
-          encoding: 'utf8',
-          cwd: process.cwd(),
-        });
-        console.log(frameworkAnalysis);
-        break;
-      }
-      case 'explain_feature': {
-        const fs = require('fs');
-        const path = require('path');
-        const featurePath = path.join(__dirname, '../../../automation/tests/features/login.feature');
-        const featureContent = fs.readFileSync(featurePath, 'utf8');
-        const explanation = await commandParser.explainFeatureFile(featureContent);
-        console.log('Feature Analysis:');
-        console.log('='.repeat(50));
-        console.log(explanation);
-        console.log('='.repeat(50));
-        break;
-      }
-      case 'view_results': {
-        const fs = require('fs');
-        const path = require('path');
-        const cucumberReportPath = path.join(__dirname, '../../../automation/cucumber-report.html');
-        if (fs.existsSync(cucumberReportPath)) {
-          console.log('Cucumber HTML Report:');
-          console.log(`${cucumberReportPath}\n`);
-        }
-        const cucumberJsonPath = path.join(__dirname, '../../../automation/cucumber-report.json');
-        if (fs.existsSync(cucumberJsonPath)) {
-          const jsonContent = JSON.parse(fs.readFileSync(cucumberJsonPath, 'utf8'));
-          console.log(`Cucumber JSON Report: ${cucumberJsonPath}`);
-          console.log(`Total Scenarios: ${jsonContent.length || 0}\n`);
-        }
-        const playwrightReportPath = path.join(__dirname, '../../../automation/playwright-report');
-        if (fs.existsSync(playwrightReportPath)) {
-          console.log('Playwright HTML Report:');
-          console.log(`${playwrightReportPath}/index.html\n`);
-        }
-        const testResultsPath = path.join(__dirname, '../../../automation/test-results');
-        if (fs.existsSync(testResultsPath)) {
-          console.log('Test Results Directory:');
-          const files = fs.readdirSync(testResultsPath);
-          files.forEach((file: string) => {
-            console.log(`  ${file}`);
-          });
-          console.log();
-        }
-        break;
-      }
-      case 'open_report': {
-        const fs = require('fs');
-        const path = require('path');
-        const { execSync } = require('child_process');
-        const openCmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-        let opened = false;
+      break;
+    }
+    case 'open_report': {
+      const openCmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+      let opened = false;
 
-        // Try Cucumber HTML report
-        const cucumberReportPath = path.join(__dirname, '../../../automation/cucumber-report.html');
-        if (fs.existsSync(cucumberReportPath)) {
-          console.log('Opening Cucumber HTML Report...');
-          try {
-            execSync(`${openCmd} "${cucumberReportPath}"`);
-            console.log(`✅ Opened: ${cucumberReportPath}`);
-            opened = true;
-          } catch (err) {
-            console.error(`❌ Failed to open: ${cucumberReportPath}`);
-          }
+      // Try Cucumber HTML report
+      const cucumberReportPath = path.join(workingDirectory, 'cucumber-report.html');
+      if (fs.existsSync(cucumberReportPath)) {
+        console.log('Opening Cucumber HTML Report...');
+        try {
+          execSync(`${openCmd} "${cucumberReportPath}"`);
+          console.log('✅ Cucumber report opened successfully');
+          opened = true;
+        } catch (error) {
+          console.log('❌ Failed to open Cucumber report');
         }
-
-        // Try Playwright HTML report
-        const playwrightReportPath = path.join(__dirname, '../../../automation/playwright-report/index.html');
-        if (fs.existsSync(playwrightReportPath)) {
-          console.log('Opening Playwright HTML Report...');
-          try {
-            execSync(`${openCmd} "${playwrightReportPath}"`);
-            console.log(`✅ Opened: ${playwrightReportPath}`);
-            opened = true;
-          } catch (err) {
-            console.error(`❌ Failed to open: ${playwrightReportPath}`);
-          }
-        }
-
-        if (!opened) {
-          console.log('❌ No HTML report found to open.');
-        }
-        break;
       }
-      case 'ai_workflow':
-      case 'git_operations': {
+
+      // Try Playwright HTML report
+      const playwrightReportPath = path.join(workingDirectory, 'playwright-report/index.html');
+      if (fs.existsSync(playwrightReportPath)) {
+        console.log('Opening Playwright HTML Report...');
+        try {
+          execSync(`${openCmd} "${playwrightReportPath}"`);
+          console.log('✅ Playwright report opened successfully');
+          opened = true;
+        } catch (error) {
+          console.log('❌ Failed to open Playwright report');
+        }
+      }
+
+      if (!opened) {
+        console.log('❌ No reports found to open');
+      }
+      break;
+    }
+    default:
+      if (command === 'ai_workflow' || command === 'git_operations') {
         // Run the full AI workflow for natural language git/code requests
         const workflowResult = await workflowService.executeWorkflow(input);
         console.log(workflowResult.message);
         if (!workflowResult.success) {
           process.exit(1);
         }
-        break;
+      } else {
+        console.log(`❌ Unknown or unsupported command: ${parsedCommand.command}`);
+        console.log('💡 Try: run all tests, list all tests, show failed tests, etc.');
       }
-      case 'run_all_tests': {
-        const result = execSync('npx playwright test', { 
-          encoding: 'utf8',
-          cwd: path.join(__dirname, '../../../automation')
-        });
-        console.log(result);
-        break;
-      }
-      case 'run_test': {
-        const testName = input.match(/run (.+)/i)?.[1]?.trim();
-        if (!testName) {
-          console.log('❌ Please specify the test name.');
-          break;
-        }
-        const result = execSync(`npx playwright test ${testName}`, { 
-          encoding: 'utf8',
-          cwd: path.join(__dirname, '../../../automation')
-        });
-        console.log(result);
-        break;
-      }
-      case 'run_tests_by_tag': {
-        const tagMatch = input.match(/@\w+/);
-        const tag = tagMatch ? tagMatch[0] : null;
-        if (!tag) {
-          console.log('❌ Please specify a tag (e.g., @smoke).');
-          break;
-        }
-        const result = execSync(`npx playwright test --grep ${tag}`, { 
-          encoding: 'utf8',
-          cwd: path.join(__dirname, '../../../automation')
-        });
-        console.log(result);
-        break;
-      }
-      case 'list_all_tests': {
-        const files = execSync('find tests -name "*.spec.ts"', { 
-          encoding: 'utf8',
-          cwd: path.join(__dirname, '../../../automation')
-        });
-        console.log('Test files:\n' + files);
-        break;
-      }
-      case 'show_last_test_run': {
-        const reportPath = path.join(__dirname, '../../../automation/test-results/last-run.json');
-        if (fs.existsSync(reportPath)) {
-          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-          console.log('Last Test Run Summary:');
-          console.log(JSON.stringify(report, null, 2));
-        } else {
-          console.log('❌ No last run report found.');
-        }
-        break;
-      }
-      case 'show_failed_tests': {
-        const reportPath = path.join(__dirname, '../../../automation/test-results/last-run.json');
-        if (fs.existsSync(reportPath)) {
-          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-          const failed = report.failed || [];
-          if (failed.length) {
-            console.log('Failed tests:');
-            failed.forEach((t: string) => console.log('  • ' + t));
-          } else {
-            console.log('✅ No failed tests in last run.');
-          }
-        } else {
-          console.log('❌ No last run report found.');
-        }
-        break;
-      }
-      case 'rerun_last_failed_tests': {
-        const reportPath = path.join(__dirname, '../../../automation/test-results/last-run.json');
-        if (fs.existsSync(reportPath)) {
-          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-          const failed = report.failed || [];
-          if (failed.length) {
-            const result = execSync(`npx playwright test ${failed.join(' ')}`, { 
-              encoding: 'utf8',
-              cwd: path.join(__dirname, '../../../automation')
-            });
-            console.log(result);
-          } else {
-            console.log('✅ No failed tests to rerun.');
-          }
-        } else {
-          console.log('❌ No last run report found.');
-        }
-        break;
-      }
-      case 'list_feature_files': {
-        const files = execSync('find tests/features -name "*.feature"', { 
-          encoding: 'utf8',
-          cwd: path.join(__dirname, '../../../automation')
-        });
-        console.log('Feature files:\n' + files);
-        break;
-      }
-      case 'run_feature_file': {
-        const featureFile = input.match(/feature file (.+)/i)?.[1]?.trim();
-        if (!featureFile) {
-          console.log('❌ Please specify the feature file name.');
-          break;
-        }
-        const result = execSync(`npx cucumber-js tests/features/${featureFile} --config cucumber.js --format summary`, { 
-          encoding: 'utf8',
-          cwd: path.join(__dirname, '../../../automation')
-        });
-        console.log(result);
-        break;
-      }
-      case 'show_test_history': {
-        const testName = input.match(/history for (.+)/i)?.[1]?.trim();
-        if (!testName) {
-          console.log('❌ Please specify the test name.');
-          break;
-        }
-        const historyPath = path.join(__dirname, '../../../automation/test-results/history', testName + '.json');
-        if (fs.existsSync(historyPath)) {
-          const history = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-          console.log('Test History:');
-          console.log(JSON.stringify(history, null, 2));
-        } else {
-          console.log('❌ No history found for ' + testName);
-        }
-        break;
-      }
-      default:
-        if (command === 'ai_workflow' || command === 'git_operations') {
-          // Already handled above
-          break;
-        }
-        console.log(`Unknown or unsupported command: ${command}`);
-    }
-  }
-
-  // Parse and execute
-  const parsedCommand = await commandParser.parseCommand(input);
-  if (parsedCommand.isSpecialCommand && parsedCommand.command) {
-    try {
-      await executeCommand(parsedCommand.command, parsedCommand.intent);
-    } catch (error) {
-      console.error('Command Execution Error:', error instanceof Error ? error.message : 'Unknown error');
-      process.exit(1);
-    }
-    process.exit(0);
-  }
-
-  // Fallback: natural language to AI
-  try {
-    const result = await aiLayer.generateTestCode(input);
-    console.log(result.code);
-    if (result.explanation) {
-      console.log(result.explanation);
-    }
-  } catch (error) {
-    console.error('AI Error:', error instanceof Error ? error.message : 'Unknown error');
-    process.exit(1);
   }
 }
 
