@@ -123,7 +123,59 @@ async function main() {
         }
         break;
       }
+      case 'open_report': {
+        const fs = require('fs');
+        const path = require('path');
+        const { execSync } = require('child_process');
+        const openCmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+        let opened = false;
+
+        // Try Cucumber HTML report
+        const cucumberReportPath = path.join(__dirname, '../../../automation/cucumber-report.html');
+        if (fs.existsSync(cucumberReportPath)) {
+          console.log('Opening Cucumber HTML Report...');
+          try {
+            execSync(`${openCmd} "${cucumberReportPath}"`);
+            console.log(`✅ Opened: ${cucumberReportPath}`);
+            opened = true;
+          } catch (err) {
+            console.error(`❌ Failed to open: ${cucumberReportPath}`);
+          }
+        }
+
+        // Try Playwright HTML report
+        const playwrightReportPath = path.join(__dirname, '../../../automation/playwright-report/index.html');
+        if (fs.existsSync(playwrightReportPath)) {
+          console.log('Opening Playwright HTML Report...');
+          try {
+            execSync(`${openCmd} "${playwrightReportPath}"`);
+            console.log(`✅ Opened: ${playwrightReportPath}`);
+            opened = true;
+          } catch (err) {
+            console.error(`❌ Failed to open: ${playwrightReportPath}`);
+          }
+        }
+
+        if (!opened) {
+          console.log('❌ No HTML report found to open.');
+        }
+        break;
+      }
+      case 'ai_workflow':
+      case 'git_operations': {
+        // Run the full AI workflow for natural language git/code requests
+        const workflowResult = await workflowService.executeWorkflow(input);
+        console.log(workflowResult.message);
+        if (!workflowResult.success) {
+          process.exit(1);
+        }
+        break;
+      }
       default:
+        if (command === 'ai_workflow' || command === 'git_operations') {
+          // Already handled above
+          break;
+        }
         console.log(`Unknown or unsupported command: ${command}`);
     }
   }
