@@ -13,7 +13,8 @@
         "format": "prettier --write src/**/*.ts",
         "generate": "ts-node src/cli/generate.ts",
         "chat": "ts-node src/cli/chat.ts",
-        "analyze": "ts-node src/cli/analyze.ts"
+        "analyze": "ts-node src/cli/analyze.ts",
+        "test-workflow": "ts-node test-workflow.js"
     },
   "keywords": [
     "playwright",

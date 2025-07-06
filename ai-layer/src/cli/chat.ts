@@ -3,6 +3,7 @@
 import { AILayer } from '../index';
 import { IntelligentCommandParser } from '../core/IntelligentCommandParser';
 import { GitAutomationService } from '../core/GitAutomationService';
+import { AIWorkflowService } from '../core/AIWorkflowService';
 import { LLMConfig } from '../types/AITypes';
 import inquirer from 'inquirer';
 
@@ -27,6 +28,7 @@ async function chat() {
     };
     const commandParser = new IntelligentCommandParser(config);
     const gitService = new GitAutomationService();
+    const workflowService = new AIWorkflowService(config);
 
     // Command execution function
     async function executeCommand(command: string, intent?: any): Promise<void> {
@@ -333,18 +335,49 @@ async function chat() {
                                 {
                                     type: 'input',
                                     name: 'workflowRequest',
-                                    message: 'What would you like me to create? (e.g., "new login test", "web dashboard")',
+                                    message: 'What would you like me to create? (e.g., "Create new branch AddCart and create a new feature file and implementation for login and add to cart. commit the code for review")',
                                     validate: (input: string) => input.trim() ? true : 'Request is required'
                                 }
                             ]);
                             
-                            // This would integrate with the AI to generate code
-                            console.log('🚧 AI workflow feature coming soon!');
-                            console.log(`Request: ${workflowRequest}`);
+                            console.log('\n🚀 Starting AI Workflow...');
+                            const workflowResult = await workflowService.executeWorkflow(workflowRequest);
+                            
+                            console.log('\n' + workflowResult.message);
+                            
+                            if (!workflowResult.success) {
+                                console.error(`❌ Workflow failed: ${workflowResult.error}`);
+                            }
                             break;
                     }
                 } catch (error) {
                     console.error('❌ Git operation error:', error instanceof Error ? error.message : 'Unknown error');
+                }
+                break;
+                
+            case 'ai_workflow':
+                console.log('🤖 AI-Powered Feature Generation and Git Workflow\n');
+                try {
+                    const { userRequest } = await inquirer.prompt([
+                        {
+                            type: 'input',
+                            name: 'userRequest',
+                            message: 'Describe what you want to create (e.g., "Create new branch AddCart and create a new feature file and implementation for login and add to cart. commit the code for review")',
+                            validate: (input: string) => input.trim() ? true : 'Request is required'
+                        }
+                    ]);
+                    
+                    console.log('\n🚀 Starting AI Workflow...');
+                    const workflowResult = await workflowService.executeWorkflow(userRequest);
+                    
+                    console.log('\n' + workflowResult.message);
+                    
+                    if (!workflowResult.success) {
+                        console.error(`❌ Workflow failed: ${workflowResult.error}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ AI workflow error:', error instanceof Error ? error.message : 'Unknown error');
                 }
                 break;
                 

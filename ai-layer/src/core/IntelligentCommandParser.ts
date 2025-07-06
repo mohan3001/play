@@ -80,6 +80,14 @@ export class IntelligentCommandParser {
             'git workflow', 'complete workflow', 'ai workflow', 'automated workflow'
         ]);
 
+        // AI workflow variations
+        this.commandMappings.set('ai_workflow', [
+            'create new branch', 'new feature', 'generate feature', 'create feature',
+            'add cart', 'login cart', 'cart feature', 'shopping cart',
+            'create test', 'generate test', 'new test', 'feature test',
+            'commit for review', 'code review', 'review code', 'submit for review'
+        ]);
+
         // Coverage variations
         this.commandMappings.set('coverage', [
             'coverage', 'test coverage', 'show coverage', 'coverage report',
@@ -196,8 +204,9 @@ Available commands:
 5. view_results - View last execution results and reports
 6. open_report - Open test reports in browser
 7. git_operations - Git operations (create branch, commit, push)
-8. coverage - Show test coverage
-9. analyze_framework - Analyze the automation framework
+8. ai_workflow - AI-powered feature generation and Git workflow
+9. coverage - Show test coverage
+10. analyze_framework - Analyze the automation framework
 
 User message: "${message}"
 
@@ -251,6 +260,7 @@ If the message doesn't match any command, respond with:
             'view_results': 'view_results',
             'open_report': 'open_report',
             'git_operations': 'git_operations',
+            'ai_workflow': 'ai_workflow',
             'coverage': 'coverage',
             'analyze_framework': 'analyze_framework'
         };
@@ -267,6 +277,7 @@ If the message doesn't match any command, respond with:
             'view_results': 'View last execution results and test reports',
             'open_report': 'Open test reports in default browser',
             'git_operations': 'Git operations (create branch, commit, push)',
+            'ai_workflow': 'AI-powered feature generation and Git workflow',
             'coverage': 'Show test coverage analysis',
             'analyze_framework': 'Analyze the automation framework structure'
         };
