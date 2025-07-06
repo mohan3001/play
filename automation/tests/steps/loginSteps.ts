@@ -10,7 +10,7 @@ Given('I am on the login page', async function() {
     const { page } = this;
     loginPage = new LoginPage(page);
     testData = TestDataManager.getInstance();
-    await page.goto('/');
+    // Page is already navigated to base URL in hooks
 });
 
 When('I enter valid username {string}', async function(username: string) {

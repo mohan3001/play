@@ -12,6 +12,10 @@ BeforeAll(async function() {
 Before(async function() {
     context = await browser.newContext();
     page = await context.newPage();
+    
+    // Set the base URL from Playwright config
+    await page.goto('https://www.saucedemo.com');
+    
     this.page = page;
     this.context = context;
     this.browser = browser;

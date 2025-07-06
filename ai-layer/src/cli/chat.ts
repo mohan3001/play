@@ -45,11 +45,10 @@ async function chat() {
                 });
                 
                 console.log(analysis);
-                continue;
             } catch (error) {
                 console.error('❌ Analysis Error:', error instanceof Error ? error.message : 'Unknown error');
-                continue;
             }
+            continue;
         }
 
         if (lowerMessage === 'coverage') {
@@ -63,11 +62,10 @@ async function chat() {
                 });
                 
                 console.log(coverage);
-                continue;
             } catch (error) {
                 console.error('❌ Coverage Error:', error instanceof Error ? error.message : 'Unknown error');
-                continue;
             }
+            continue;
         }
 
         if (lowerMessage === 'run login feature' || lowerMessage === 'run cucumber login') {
@@ -75,17 +73,16 @@ async function chat() {
                 console.log('🥒 Running login.feature...\n');
                 
                 const { execSync } = require('child_process');
-                const result = execSync('cd ../automation && npx cucumber-js tests/features/login.feature', { 
+                const result = execSync('cd ../automation && npx cucumber-js tests/features/login.feature --config cucumber.js --format summary', { 
                     encoding: 'utf8',
                     cwd: process.cwd()
                 });
                 
                 console.log(result);
-                continue;
             } catch (error) {
                 console.error('❌ Cucumber Error:', error instanceof Error ? error.message : 'Unknown error');
-                continue;
             }
+            continue;
         }
 
         try {
