@@ -56,6 +56,14 @@ export class IntelligentCommandParser {
             'read login feature', 'understand login feature', 'login feature breakdown'
         ]);
 
+        // View last execution results variations
+        this.commandMappings.set('view_results', [
+            'view results', 'show results', 'last execution results', 'test results',
+            'show last results', 'view last results', 'execution results', 'recent results',
+            'test execution results', 'show test results', 'last test results', 'cucumber results',
+            'playwright results', 'test report', 'show report', 'view report'
+        ]);
+
         // Coverage variations
         this.commandMappings.set('coverage', [
             'coverage', 'test coverage', 'show coverage', 'coverage report',
@@ -169,8 +177,9 @@ Available commands:
 2. count_features - Count and list feature files  
 3. run_login - Execute login feature tests
 4. explain_feature - Explain feature file content and validations
-5. coverage - Show test coverage
-6. analyze_framework - Analyze the automation framework
+5. view_results - View last execution results and reports
+6. coverage - Show test coverage
+7. analyze_framework - Analyze the automation framework
 
 User message: "${message}"
 
@@ -221,6 +230,7 @@ If the message doesn't match any command, respond with:
             'count_features': 'count_features', 
             'run_login': 'run_login',
             'explain_feature': 'explain_feature',
+            'view_results': 'view_results',
             'coverage': 'coverage',
             'analyze_framework': 'analyze_framework'
         };
@@ -234,6 +244,7 @@ If the message doesn't match any command, respond with:
             'count_features': 'Count and list Cucumber feature files',
             'run_login': 'Execute the login.feature Cucumber tests',
             'explain_feature': 'Read and explain feature file content and validations',
+            'view_results': 'View last execution results and test reports',
             'coverage': 'Show test coverage analysis',
             'analyze_framework': 'Analyze the automation framework structure'
         };

@@ -107,6 +107,84 @@ async function chat() {
                 }
                 break;
                 
+            case 'view_results':
+                console.log('📊 Viewing last execution results...\n');
+                try {
+                    const fs = require('fs');
+                    const path = require('path');
+                    
+                    // Check for Cucumber HTML report
+                    const cucumberReportPath = path.join(__dirname, '../../../automation/cucumber-report.html');
+                    if (fs.existsSync(cucumberReportPath)) {
+                        console.log('🥒 Cucumber HTML Report:');
+                        console.log(`📄 ${cucumberReportPath}\n`);
+                    }
+                    
+                    // Check for Cucumber JSON report
+                    const cucumberJsonPath = path.join(__dirname, '../../../automation/cucumber-report.json');
+                    if (fs.existsSync(cucumberJsonPath)) {
+                        console.log('📋 Cucumber JSON Report:');
+                        const jsonContent = JSON.parse(fs.readFileSync(cucumberJsonPath, 'utf8'));
+                        console.log(`📄 ${cucumberJsonPath}`);
+                        console.log(`📊 Total Scenarios: ${jsonContent.length || 0}\n`);
+                    }
+                    
+                    // Check for Playwright HTML report
+                    const playwrightReportPath = path.join(__dirname, '../../../automation/playwright-report');
+                    if (fs.existsSync(playwrightReportPath)) {
+                        console.log('🎭 Playwright HTML Report:');
+                        console.log(`📄 ${playwrightReportPath}/index.html\n`);
+                    }
+                    
+                    // Check for test results
+                    const testResultsPath = path.join(__dirname, '../../../automation/test-results');
+                    if (fs.existsSync(testResultsPath)) {
+                        console.log('📈 Test Results Directory:');
+                        const files = fs.readdirSync(testResultsPath);
+                        files.forEach((file: string) => {
+                            console.log(`  📄 ${file}`);
+                        });
+                        console.log();
+                    }
+                    
+                    // Show recent execution summary
+                    console.log('🕒 Recent Execution Summary:');
+                    console.log('='.repeat(50));
+                    
+                    // Try to get last execution from Cucumber JSON
+                    if (fs.existsSync(cucumberJsonPath)) {
+                        const jsonContent = JSON.parse(fs.readFileSync(cucumberJsonPath, 'utf8'));
+                        if (jsonContent.length > 0) {
+                            const lastExecution = jsonContent[jsonContent.length - 1];
+                            console.log(`📅 Last Execution: ${new Date().toLocaleString()}`);
+                            console.log(`🎯 Feature: ${lastExecution.name || 'Login Feature'}`);
+                            console.log(`📊 Status: ${lastExecution.status || 'Completed'}`);
+                            
+                            if (lastExecution.elements) {
+                                const scenarios = lastExecution.elements;
+                                const passed = scenarios.filter((s: any) => s.status === 'passed').length;
+                                const failed = scenarios.filter((s: any) => s.status === 'failed').length;
+                                const skipped = scenarios.filter((s: any) => s.status === 'skipped').length;
+                                
+                                console.log(`✅ Passed: ${passed}`);
+                                console.log(`❌ Failed: ${failed}`);
+                                console.log(`⏭️ Skipped: ${skipped}`);
+                                console.log(`📊 Total: ${scenarios.length}`);
+                            }
+                        }
+                    }
+                    
+                    console.log('='.repeat(50));
+                    console.log('\n💡 To view detailed reports:');
+                    console.log('  • Cucumber HTML: Open cucumber-report.html in browser');
+                    console.log('  • Playwright HTML: Open playwright-report/index.html in browser');
+                    console.log('  • JSON Reports: Check cucumber-report.json for detailed data');
+                    
+                } catch (error) {
+                    console.error('❌ Error viewing results:', error instanceof Error ? error.message : 'Unknown error');
+                }
+                break;
+                
             default:
                 console.log(`❌ Unknown command: ${command}`);
         }
