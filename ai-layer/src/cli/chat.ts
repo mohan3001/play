@@ -185,6 +185,46 @@ async function chat() {
                 }
                 break;
                 
+            case 'open_report':
+                console.log('🌐 Opening test reports in browser...\n');
+                try {
+                    const { execSync } = require('child_process');
+                    const path = require('path');
+                    const fs = require('fs');
+                    
+                    // Check for Playwright HTML report
+                    const playwrightReportPath = path.join(__dirname, '../../../automation/playwright-report/index.html');
+                    if (fs.existsSync(playwrightReportPath)) {
+                        console.log('🎭 Opening Playwright HTML Report...');
+                        execSync(`open "${playwrightReportPath}"`, { 
+                            encoding: 'utf8',
+                            cwd: process.cwd()
+                        });
+                        console.log('✅ Playwright report opened in browser');
+                    } else {
+                        console.log('❌ Playwright HTML report not found');
+                    }
+                    
+                    // Check for Cucumber HTML report
+                    const cucumberReportPath = path.join(__dirname, '../../../automation/cucumber-report.html');
+                    if (fs.existsSync(cucumberReportPath)) {
+                        console.log('🥒 Opening Cucumber HTML Report...');
+                        execSync(`open "${cucumberReportPath}"`, { 
+                            encoding: 'utf8',
+                            cwd: process.cwd()
+                        });
+                        console.log('✅ Cucumber report opened in browser');
+                    } else {
+                        console.log('❌ Cucumber HTML report not found');
+                    }
+                    
+                    console.log('\n💡 Reports opened in your default browser');
+                    
+                } catch (error) {
+                    console.error('❌ Error opening reports:', error instanceof Error ? error.message : 'Unknown error');
+                }
+                break;
+                
             default:
                 console.log(`❌ Unknown command: ${command}`);
         }

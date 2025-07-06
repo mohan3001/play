@@ -64,6 +64,13 @@ export class IntelligentCommandParser {
             'playwright results', 'test report', 'show report', 'view report'
         ]);
 
+        // Open reports in browser variations
+        this.commandMappings.set('open_report', [
+            'open playwright report', 'open report', 'open test report', 'open html report',
+            'open playwright-report', 'open playwright html', 'open test results', 'open results',
+            'open browser report', 'show playwright report', 'view playwright report', 'launch report'
+        ]);
+
         // Coverage variations
         this.commandMappings.set('coverage', [
             'coverage', 'test coverage', 'show coverage', 'coverage report',
@@ -178,8 +185,9 @@ Available commands:
 3. run_login - Execute login feature tests
 4. explain_feature - Explain feature file content and validations
 5. view_results - View last execution results and reports
-6. coverage - Show test coverage
-7. analyze_framework - Analyze the automation framework
+6. open_report - Open test reports in browser
+7. coverage - Show test coverage
+8. analyze_framework - Analyze the automation framework
 
 User message: "${message}"
 
@@ -231,6 +239,7 @@ If the message doesn't match any command, respond with:
             'run_login': 'run_login',
             'explain_feature': 'explain_feature',
             'view_results': 'view_results',
+            'open_report': 'open_report',
             'coverage': 'coverage',
             'analyze_framework': 'analyze_framework'
         };
@@ -245,6 +254,7 @@ If the message doesn't match any command, respond with:
             'run_login': 'Execute the login.feature Cucumber tests',
             'explain_feature': 'Read and explain feature file content and validations',
             'view_results': 'View last execution results and test reports',
+            'open_report': 'Open test reports in default browser',
             'coverage': 'Show test coverage analysis',
             'analyze_framework': 'Analyze the automation framework structure'
         };
