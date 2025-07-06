@@ -88,6 +88,25 @@ async function chat() {
                 console.log(frameworkAnalysis);
                 break;
                 
+            case 'explain_feature':
+                console.log('📖 Reading and analyzing login feature file...\n');
+                try {
+                    const fs = require('fs');
+                    const path = require('path');
+                    const featurePath = path.join(__dirname, '../../../automation/tests/features/login.feature');
+                    const featureContent = fs.readFileSync(featurePath, 'utf8');
+                    
+                    // Use LLM to explain the feature
+                    const explanation = await commandParser.explainFeatureFile(featureContent);
+                    console.log('🤖 Feature Analysis:');
+                    console.log('='.repeat(50));
+                    console.log(explanation);
+                    console.log('='.repeat(50));
+                } catch (error) {
+                    console.error('❌ Error reading feature file:', error instanceof Error ? error.message : 'Unknown error');
+                }
+                break;
+                
             default:
                 console.log(`❌ Unknown command: ${command}`);
         }

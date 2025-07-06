@@ -48,6 +48,14 @@ export class IntelligentCommandParser {
             'run login.feature', 'test login functionality', 'login test execution'
         ]);
 
+        // Explain feature file variations
+        this.commandMappings.set('explain_feature', [
+            'explain login feature', 'describe login feature', 'what does login feature do',
+            'explain login steps', 'describe login functionality', 'login feature explanation',
+            'what are the login validations', 'explain login test cases', 'login feature analysis',
+            'read login feature', 'understand login feature', 'login feature breakdown'
+        ]);
+
         // Coverage variations
         this.commandMappings.set('coverage', [
             'coverage', 'test coverage', 'show coverage', 'coverage report',
@@ -160,8 +168,9 @@ Available commands:
 1. count_tests - Count and analyze test files
 2. count_features - Count and list feature files  
 3. run_login - Execute login feature tests
-4. coverage - Show test coverage
-5. analyze_framework - Analyze the automation framework
+4. explain_feature - Explain feature file content and validations
+5. coverage - Show test coverage
+6. analyze_framework - Analyze the automation framework
 
 User message: "${message}"
 
@@ -211,6 +220,7 @@ If the message doesn't match any command, respond with:
             'count_tests': 'count_tests',
             'count_features': 'count_features', 
             'run_login': 'run_login',
+            'explain_feature': 'explain_feature',
             'coverage': 'coverage',
             'analyze_framework': 'analyze_framework'
         };
@@ -223,10 +233,35 @@ If the message doesn't match any command, respond with:
             'count_tests': 'Count and analyze test files in the framework',
             'count_features': 'Count and list Cucumber feature files',
             'run_login': 'Execute the login.feature Cucumber tests',
+            'explain_feature': 'Read and explain feature file content and validations',
             'coverage': 'Show test coverage analysis',
             'analyze_framework': 'Analyze the automation framework structure'
         };
 
         return descriptions[command] || 'Unknown command';
+    }
+
+    async explainFeatureFile(featureContent: string): Promise<string> {
+        const explanationPrompt = `Please analyze this Cucumber feature file and explain:
+
+1. What is the main functionality being tested?
+2. What are all the test scenarios?
+3. What validations are being performed?
+4. What are the expected outcomes for each scenario?
+5. What are the step definitions doing?
+
+Feature file content:
+\`\`\`gherkin
+${featureContent}
+\`\`\`
+
+Please provide a comprehensive explanation in a clear, structured format.`;
+
+        try {
+            const result = await this.ollamaClient.generate(explanationPrompt);
+            return result.code;
+        } catch (error) {
+            throw new Error(`Failed to explain feature file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     }
 } 
