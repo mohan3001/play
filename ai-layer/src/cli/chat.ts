@@ -6,7 +6,7 @@ import inquirer from 'inquirer';
 async function chat() {
     console.log('🤖 Welcome to Playwright AI Chat!');
     console.log('Type "exit" to quit');
-    console.log('Special commands: "count tests", "analyze framework", "coverage"\n');
+    console.log('Special commands: "count tests", "analyze framework", "coverage", "run login feature"\n');
 
     const aiLayer = new AILayer();
 
@@ -66,6 +66,24 @@ async function chat() {
                 continue;
             } catch (error) {
                 console.error('❌ Coverage Error:', error instanceof Error ? error.message : 'Unknown error');
+                continue;
+            }
+        }
+
+        if (lowerMessage === 'run login feature' || lowerMessage === 'run cucumber login') {
+            try {
+                console.log('🥒 Running login.feature...\n');
+                
+                const { execSync } = require('child_process');
+                const result = execSync('cd ../automation && npx cucumber-js tests/features/login.feature', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                });
+                
+                console.log(result);
+                continue;
+            } catch (error) {
+                console.error('❌ Cucumber Error:', error instanceof Error ? error.message : 'Unknown error');
                 continue;
             }
         }
