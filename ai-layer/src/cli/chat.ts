@@ -6,7 +6,7 @@ import inquirer from 'inquirer';
 async function chat() {
     console.log('🤖 Welcome to Playwright AI Chat!');
     console.log('Type "exit" to quit');
-    console.log('Special commands: "count tests", "analyze framework", "coverage", "run login feature"\n');
+    console.log('Special commands: "count tests", "analyze framework", "coverage", "run login feature", "count feature files"\n');
 
     const aiLayer = new AILayer();
 
@@ -81,6 +81,37 @@ async function chat() {
                 console.log(result);
             } catch (error) {
                 console.error('❌ Cucumber Error:', error instanceof Error ? error.message : 'Unknown error');
+            }
+            continue;
+        }
+
+        if (lowerMessage === 'how many feature files we have' || lowerMessage === 'count feature files' || lowerMessage === 'list features') {
+            try {
+                console.log('📁 Counting feature files...\n');
+                
+                const { execSync } = require('child_process');
+                const result = execSync('find ../automation/tests/features -name "*.feature" | wc -l', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                });
+                
+                const featureCount = result.trim();
+                console.log(`📊 Found ${featureCount} feature file(s)`);
+                
+                // List the feature files
+                const featureFiles = execSync('find ../automation/tests/features -name "*.feature" -exec basename {} \\;', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                });
+                
+                if (featureFiles.trim()) {
+                    console.log('\n📋 Feature files:');
+                    featureFiles.split('\n').filter((f: string) => f.trim()).forEach((file: string) => {
+                        console.log(`  • ${file}`);
+                    });
+                }
+            } catch (error) {
+                console.error('❌ Feature Count Error:', error instanceof Error ? error.message : 'Unknown error');
             }
             continue;
         }
