@@ -1,14 +1,18 @@
-const { AIWorkflowService } = require('./dist/core/AIWorkflowService');
-const { LLMConfig } = require('./dist/types/AITypes');
+import { AIWorkflowService } from '../core/AIWorkflowService';
+import { LLMConfig } from '../types/AITypes';
 
 async function testWorkflow() {
     console.log('🧪 Testing AI Workflow Service...\n');
     
-    const config = {
+    const config: LLMConfig = {
         model: 'mistral',
-        baseUrl: 'http://localhost:11434',
         temperature: 0.7,
-        maxTokens: 2000
+        maxTokens: 2000,
+        topP: 0.9,
+        topK: 40,
+        repeatPenalty: 1.1,
+        contextWindow: 4096,
+        batchSize: 1
     };
     
     const workflowService = new AIWorkflowService(config);
@@ -37,7 +41,7 @@ async function testWorkflow() {
         }
         
     } catch (error) {
-        console.error('❌ Test failed:', error.message);
+        console.error('❌ Test failed:', error instanceof Error ? error.message : 'Unknown error');
     }
 }
 
