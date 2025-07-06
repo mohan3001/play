@@ -1,14 +1,97 @@
 #!/usr/bin/env node
 
 import { AILayer } from '../index';
+import { IntelligentCommandParser } from '../core/IntelligentCommandParser';
+import { LLMConfig } from '../types/AITypes';
 import inquirer from 'inquirer';
 
 async function chat() {
     console.log('🤖 Welcome to Playwright AI Chat!');
     console.log('Type "exit" to quit');
     console.log('Special commands: "count tests/test", "analyze framework", "coverage", "run login feature", "count feature files"\n');
+    console.log('💡 You can also use natural language like "how many tests do we have?" or "list all feature files"\n');
 
     const aiLayer = new AILayer();
+    
+    // Initialize intelligent command parser
+    const config: LLMConfig = {
+        model: 'mistral',
+        temperature: 0.1,
+        maxTokens: 500,
+        topP: 0.9,
+        topK: 40,
+        repeatPenalty: 1.1,
+        contextWindow: 4096,
+        batchSize: 1
+    };
+    const commandParser = new IntelligentCommandParser(config);
+
+    // Command execution function
+    async function executeCommand(command: string, intent?: any): Promise<void> {
+        const { execSync } = require('child_process');
+        
+        switch (command) {
+            case 'count_tests':
+                console.log('🔍 Analyzing framework...\n');
+                const analysis = execSync('npm run analyze tests -- --path ../automation', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                });
+                console.log(analysis);
+                break;
+                
+            case 'coverage':
+                console.log('📊 Analyzing coverage...\n');
+                const coverage = execSync('npm run analyze coverage -- --path ../automation', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                });
+                console.log(coverage);
+                break;
+                
+            case 'run_login':
+                console.log('🥒 Running login.feature...\n');
+                const result = execSync('cd ../automation && npx cucumber-js tests/features/login.feature --config cucumber.js --format summary', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                });
+                console.log(result);
+                break;
+                
+            case 'count_features':
+                console.log('📁 Counting feature files...\n');
+                const featureCount = execSync('find ../automation/tests/features -name "*.feature" | wc -l', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                }).trim();
+                console.log(`📊 Found ${featureCount} feature file(s)`);
+                
+                const featureFiles = execSync('find ../automation/tests/features -name "*.feature" -exec basename {} \\;', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                });
+                
+                if (featureFiles.trim()) {
+                    console.log('\n📋 Feature files:');
+                    featureFiles.split('\n').filter((f: string) => f.trim()).forEach((file: string) => {
+                        console.log(`  • ${file}`);
+                    });
+                }
+                break;
+                
+            case 'analyze_framework':
+                console.log('🔍 Analyzing framework...\n');
+                const frameworkAnalysis = execSync('npm run analyze tests -- --path ../automation', { 
+                    encoding: 'utf8',
+                    cwd: process.cwd()
+                });
+                console.log(frameworkAnalysis);
+                break;
+                
+            default:
+                console.log(`❌ Unknown command: ${command}`);
+        }
+    }
 
     while (true) {
         const { message } = await inquirer.prompt([
@@ -30,88 +113,14 @@ async function chat() {
             break;
         }
 
-        // Handle special commands
-        const lowerMessage = message.toLowerCase();
+        // Use intelligent command parser
+        const parsedCommand = await commandParser.parseCommand(message);
         
-        if (lowerMessage === 'count tests' || lowerMessage === 'count test' || lowerMessage === 'analyze framework' || lowerMessage === 'analyse framework') {
+        if (parsedCommand.isSpecialCommand && parsedCommand.command) {
             try {
-                console.log('🔍 Analyzing framework...\n');
-                
-                // Import and run the analysis
-                const { execSync } = require('child_process');
-                const analysis = execSync('npm run analyze tests -- --path ../automation', { 
-                    encoding: 'utf8',
-                    cwd: process.cwd()
-                });
-                
-                console.log(analysis);
+                await executeCommand(parsedCommand.command, parsedCommand.intent);
             } catch (error) {
-                console.error('❌ Analysis Error:', error instanceof Error ? error.message : 'Unknown error');
-            }
-            continue;
-        }
-
-        if (lowerMessage === 'coverage') {
-            try {
-                console.log('📊 Analyzing coverage...\n');
-                
-                const { execSync } = require('child_process');
-                const coverage = execSync('npm run analyze coverage -- --path ../automation', { 
-                    encoding: 'utf8',
-                    cwd: process.cwd()
-                });
-                
-                console.log(coverage);
-            } catch (error) {
-                console.error('❌ Coverage Error:', error instanceof Error ? error.message : 'Unknown error');
-            }
-            continue;
-        }
-
-        if (lowerMessage === 'run login feature' || lowerMessage === 'run cucumber login') {
-            try {
-                console.log('🥒 Running login.feature...\n');
-                
-                const { execSync } = require('child_process');
-                const result = execSync('cd ../automation && npx cucumber-js tests/features/login.feature --config cucumber.js --format summary', { 
-                    encoding: 'utf8',
-                    cwd: process.cwd()
-                });
-                
-                console.log(result);
-            } catch (error) {
-                console.error('❌ Cucumber Error:', error instanceof Error ? error.message : 'Unknown error');
-            }
-            continue;
-        }
-
-        if (lowerMessage === 'how many feature files we have' || lowerMessage === 'count feature files' || lowerMessage === 'list features') {
-            try {
-                console.log('📁 Counting feature files...\n');
-                
-                const { execSync } = require('child_process');
-                const result = execSync('find ../automation/tests/features -name "*.feature" | wc -l', { 
-                    encoding: 'utf8',
-                    cwd: process.cwd()
-                });
-                
-                const featureCount = result.trim();
-                console.log(`📊 Found ${featureCount} feature file(s)`);
-                
-                // List the feature files
-                const featureFiles = execSync('find ../automation/tests/features -name "*.feature" -exec basename {} \\;', { 
-                    encoding: 'utf8',
-                    cwd: process.cwd()
-                });
-                
-                if (featureFiles.trim()) {
-                    console.log('\n📋 Feature files:');
-                    featureFiles.split('\n').filter((f: string) => f.trim()).forEach((file: string) => {
-                        console.log(`  • ${file}`);
-                    });
-                }
-            } catch (error) {
-                console.error('❌ Feature Count Error:', error instanceof Error ? error.message : 'Unknown error');
+                console.error('❌ Command Execution Error:', error instanceof Error ? error.message : 'Unknown error');
             }
             continue;
         }
