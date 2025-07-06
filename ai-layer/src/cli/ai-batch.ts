@@ -5,6 +5,9 @@ import { IntelligentCommandParser } from '../core/IntelligentCommandParser';
 import { GitAutomationService } from '../core/GitAutomationService';
 import { AIWorkflowService } from '../core/AIWorkflowService';
 import { LLMConfig } from '../types/AITypes';
+import * as fs from 'fs';
+import * as path from 'path';
+import { execSync } from 'child_process';
 
 async function main() {
   const input = process.argv.slice(2).join(' ').trim();
@@ -168,6 +171,111 @@ async function main() {
         console.log(workflowResult.message);
         if (!workflowResult.success) {
           process.exit(1);
+        }
+        break;
+      }
+      case 'run_all_tests': {
+        const result = execSync('npx playwright test', { encoding: 'utf8' });
+        console.log(result);
+        break;
+      }
+      case 'run_test': {
+        const testName = input.match(/run (.+)/i)?.[1]?.trim();
+        if (!testName) {
+          console.log('❌ Please specify the test name.');
+          break;
+        }
+        const result = execSync(`npx playwright test ${testName}`, { encoding: 'utf8' });
+        console.log(result);
+        break;
+      }
+      case 'run_tests_by_tag': {
+        const tagMatch = input.match(/@\w+/);
+        const tag = tagMatch ? tagMatch[0] : null;
+        if (!tag) {
+          console.log('❌ Please specify a tag (e.g., @smoke).');
+          break;
+        }
+        const result = execSync(`npx playwright test --grep ${tag}`, { encoding: 'utf8' });
+        console.log(result);
+        break;
+      }
+      case 'list_all_tests': {
+        const files = execSync('find ../automation/tests -name "*.spec.ts"', { encoding: 'utf8' });
+        console.log('Test files:\n' + files);
+        break;
+      }
+      case 'show_last_test_run': {
+        const reportPath = path.join(__dirname, '../../../automation/test-results/last-run.json');
+        if (fs.existsSync(reportPath)) {
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          console.log('Last Test Run Summary:');
+          console.log(JSON.stringify(report, null, 2));
+        } else {
+          console.log('❌ No last run report found.');
+        }
+        break;
+      }
+      case 'show_failed_tests': {
+        const reportPath = path.join(__dirname, '../../../automation/test-results/last-run.json');
+        if (fs.existsSync(reportPath)) {
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          const failed = report.failed || [];
+          if (failed.length) {
+            console.log('Failed tests:');
+            failed.forEach((t: string) => console.log('  • ' + t));
+          } else {
+            console.log('✅ No failed tests in last run.');
+          }
+        } else {
+          console.log('❌ No last run report found.');
+        }
+        break;
+      }
+      case 'rerun_last_failed_tests': {
+        const reportPath = path.join(__dirname, '../../../automation/test-results/last-run.json');
+        if (fs.existsSync(reportPath)) {
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          const failed = report.failed || [];
+          if (failed.length) {
+            const result = execSync(`npx playwright test ${failed.join(' ')}`, { encoding: 'utf8' });
+            console.log(result);
+          } else {
+            console.log('✅ No failed tests to rerun.');
+          }
+        } else {
+          console.log('❌ No last run report found.');
+        }
+        break;
+      }
+      case 'list_feature_files': {
+        const files = execSync('find ../automation/tests/features -name "*.feature"', { encoding: 'utf8' });
+        console.log('Feature files:\n' + files);
+        break;
+      }
+      case 'run_feature_file': {
+        const featureFile = input.match(/feature file (.+)/i)?.[1]?.trim();
+        if (!featureFile) {
+          console.log('❌ Please specify the feature file name.');
+          break;
+        }
+        const result = execSync(`cd ../automation && npx cucumber-js tests/features/${featureFile} --config cucumber.js --format summary`, { encoding: 'utf8' });
+        console.log(result);
+        break;
+      }
+      case 'show_test_history': {
+        const testName = input.match(/history for (.+)/i)?.[1]?.trim();
+        if (!testName) {
+          console.log('❌ Please specify the test name.');
+          break;
+        }
+        const historyPath = path.join(__dirname, '../../../automation/test-results/history', testName + '.json');
+        if (fs.existsSync(historyPath)) {
+          const history = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+          console.log('Test History:');
+          console.log(JSON.stringify(history, null, 2));
+        } else {
+          console.log('❌ No history found for ' + testName);
         }
         break;
       }

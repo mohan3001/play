@@ -100,6 +100,38 @@ export class IntelligentCommandParser {
             'analyze automation', 'automation analysis', 'framework overview',
             'show framework', 'framework stats', 'automation stats'
         ]);
+
+        // Core test management & execution commands
+        this.commandMappings.set('run_all_tests', [
+            'run all tests', 'execute all tests', 'run full suite', 'run regression', 'start regression', 'run everything', 'run all', 'execute regression'
+        ]);
+        this.commandMappings.set('run_test', [
+            'run', 'execute', 'test', 'run test', 'run <test name>', 'execute <test name>', 'run spec', 'run scenario', 'run file', 'run test file'
+        ]);
+        this.commandMappings.set('run_tests_by_tag', [
+            'run tests tagged', 'run tests with tag', 'run @smoke', 'run @regression', 'run tag', 'run tests for tag', 'run tests by tag'
+        ]);
+        this.commandMappings.set('list_all_tests', [
+            'list all tests', 'show all tests', 'display all tests', 'list tests', 'show tests', 'display tests', 'list test files', 'show test files'
+        ]);
+        this.commandMappings.set('show_last_test_run', [
+            'show last test run', 'last test run', 'last run summary', 'show last run', 'display last test run', 'show previous test run', 'show last execution'
+        ]);
+        this.commandMappings.set('show_failed_tests', [
+            'show failed tests', 'list failed tests', 'display failed tests', 'failed tests', 'show failures', 'list failures', 'display failures'
+        ]);
+        this.commandMappings.set('rerun_last_failed_tests', [
+            'rerun last failed tests', 'run last failed tests', 're-execute failed tests', 'run failed tests again', 'rerun failures', 'retry failed tests'
+        ]);
+        this.commandMappings.set('list_feature_files', [
+            'list feature files', 'show feature files', 'display feature files', 'list cucumber files', 'show cucumber files', 'display cucumber files', 'list gherkin files', 'show gherkin files'
+        ]);
+        this.commandMappings.set('run_feature_file', [
+            'run feature file', 'execute feature file', 'run <feature file>', 'execute <feature file>', 'run cucumber file', 'run gherkin file'
+        ]);
+        this.commandMappings.set('show_test_history', [
+            'show test history', 'display test history', 'test history for', 'show history for', 'display history for', 'test execution history', 'show execution history'
+        ]);
     }
 
     async parseCommand(message: string): Promise<ParsedCommand> {
