@@ -71,6 +71,15 @@ export class IntelligentCommandParser {
             'open browser report', 'show playwright report', 'view playwright report', 'launch report'
         ]);
 
+        // Git operations variations
+        this.commandMappings.set('git_operations', [
+            'create branch', 'new branch', 'git branch', 'create feature branch',
+            'git status', 'show git status', 'check git status', 'repository status',
+            'git commit', 'commit changes', 'commit code', 'save changes',
+            'git push', 'push changes', 'push to remote', 'upload changes',
+            'git workflow', 'complete workflow', 'ai workflow', 'automated workflow'
+        ]);
+
         // Coverage variations
         this.commandMappings.set('coverage', [
             'coverage', 'test coverage', 'show coverage', 'coverage report',
@@ -186,8 +195,9 @@ Available commands:
 4. explain_feature - Explain feature file content and validations
 5. view_results - View last execution results and reports
 6. open_report - Open test reports in browser
-7. coverage - Show test coverage
-8. analyze_framework - Analyze the automation framework
+7. git_operations - Git operations (create branch, commit, push)
+8. coverage - Show test coverage
+9. analyze_framework - Analyze the automation framework
 
 User message: "${message}"
 
@@ -240,6 +250,7 @@ If the message doesn't match any command, respond with:
             'explain_feature': 'explain_feature',
             'view_results': 'view_results',
             'open_report': 'open_report',
+            'git_operations': 'git_operations',
             'coverage': 'coverage',
             'analyze_framework': 'analyze_framework'
         };
@@ -255,6 +266,7 @@ If the message doesn't match any command, respond with:
             'explain_feature': 'Read and explain feature file content and validations',
             'view_results': 'View last execution results and test reports',
             'open_report': 'Open test reports in default browser',
+            'git_operations': 'Git operations (create branch, commit, push)',
             'coverage': 'Show test coverage analysis',
             'analyze_framework': 'Analyze the automation framework structure'
         };

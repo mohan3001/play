@@ -2,6 +2,7 @@
 
 import { AILayer } from '../index';
 import { IntelligentCommandParser } from '../core/IntelligentCommandParser';
+import { GitAutomationService } from '../core/GitAutomationService';
 import { LLMConfig } from '../types/AITypes';
 import inquirer from 'inquirer';
 
@@ -25,6 +26,7 @@ async function chat() {
         batchSize: 1
     };
     const commandParser = new IntelligentCommandParser(config);
+    const gitService = new GitAutomationService();
 
     // Command execution function
     async function executeCommand(command: string, intent?: any): Promise<void> {
@@ -222,6 +224,127 @@ async function chat() {
                     
                 } catch (error) {
                     console.error('❌ Error opening reports:', error instanceof Error ? error.message : 'Unknown error');
+                }
+                break;
+                
+            case 'git_operations':
+                console.log('🔧 Git Operations Menu...\n');
+                try {
+                    const { gitAction } = await inquirer.prompt([
+                        {
+                            type: 'list',
+                            name: 'gitAction',
+                            message: 'Select Git operation:',
+                            choices: [
+                                { name: '📊 Show Git Status', value: 'status' },
+                                { name: '🌿 Show Current Branch', value: 'branch' },
+                                { name: '📋 Show Recent Commits', value: 'commits' },
+                                { name: '🌱 Create New Branch', value: 'create_branch' },
+                                { name: '💾 Commit Changes', value: 'commit' },
+                                { name: '🚀 Push to Remote', value: 'push' },
+                                { name: '🤖 AI Complete Workflow', value: 'ai_workflow' }
+                            ]
+                        }
+                    ]);
+
+                    switch (gitAction) {
+                        case 'status':
+                            const status = gitService.getStatus();
+                            console.log('📊 Git Status:');
+                            console.log(status || 'No changes');
+                            break;
+                            
+                        case 'branch':
+                            const currentBranch = gitService.getCurrentBranch();
+                            const branches = gitService.getBranches();
+                            console.log(`🌿 Current Branch: ${currentBranch}`);
+                            console.log('📋 All Branches:');
+                            branches.forEach(branch => {
+                                const marker = branch === currentBranch ? '→ ' : '  ';
+                                console.log(`${marker}${branch}`);
+                            });
+                            break;
+                            
+                        case 'commits':
+                            const commits = gitService.getRecentCommits(10);
+                            console.log('📋 Recent Commits:');
+                            commits.forEach(commit => console.log(`  ${commit}`));
+                            break;
+                            
+                        case 'create_branch':
+                            const { branchName } = await inquirer.prompt([
+                                {
+                                    type: 'input',
+                                    name: 'branchName',
+                                    message: 'Enter branch name:',
+                                    validate: (input: string) => {
+                                        if (!input.trim()) return 'Branch name is required';
+                                        if (!/^[a-zA-Z0-9_-]+$/.test(input)) {
+                                            return 'Branch name can only contain letters, numbers, hyphens, and underscores';
+                                        }
+                                        return true;
+                                    }
+                                }
+                            ]);
+                            const branchResult = await gitService.createBranch(branchName);
+                            console.log(branchResult.success ? `✅ ${branchResult.message}` : `❌ ${branchResult.message}`);
+                            break;
+                            
+                        case 'commit':
+                            const statusForCommit = gitService.getStatus();
+                            if (!statusForCommit) {
+                                console.log('📊 No changes to commit');
+                                break;
+                            }
+                            console.log('📊 Changes to commit:');
+                            console.log(statusForCommit);
+                            
+                            const { commitMessage } = await inquirer.prompt([
+                                {
+                                    type: 'input',
+                                    name: 'commitMessage',
+                                    message: 'Enter commit message:',
+                                    default: 'AI-generated changes'
+                                }
+                            ]);
+                            
+                            const changedFiles = statusForCommit.split('\n')
+                                .filter(line => line.trim())
+                                .map(line => line.split(' ').pop() || '')
+                                .filter(file => file);
+                            
+                            const commitResult = await gitService.commitChanges(changedFiles, commitMessage);
+                            console.log(commitResult.success ? `✅ ${commitResult.message}` : `❌ ${commitResult.message}`);
+                            break;
+                            
+                        case 'push':
+                            const pushResult = await gitService.pushBranch();
+                            console.log(pushResult.success ? `✅ ${pushResult.message}` : `❌ ${pushResult.message}`);
+                            break;
+                            
+                        case 'ai_workflow':
+                            console.log('🤖 AI Complete Workflow - This will:');
+                            console.log('1. Create a new feature branch');
+                            console.log('2. Generate code based on your request');
+                            console.log('3. Commit the changes');
+                            console.log('4. Push to remote repository');
+                            
+                            const { workflowRequest } = await inquirer.prompt([
+                                {
+                                    type: 'input',
+                                    name: 'workflowRequest',
+                                    message: 'What would you like me to create? (e.g., "new login test", "web dashboard")',
+                                    validate: (input: string) => input.trim() ? true : 'Request is required'
+                                }
+                            ]);
+                            
+                            // This would integrate with the AI to generate code
+                            console.log('🚧 AI workflow feature coming soon!');
+                            console.log(`Request: ${workflowRequest}`);
+                            break;
+                    }
+                } catch (error) {
+                    console.error('❌ Git operation error:', error instanceof Error ? error.message : 'Unknown error');
                 }
                 break;
                 
