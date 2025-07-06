@@ -31,7 +31,9 @@ async function chat() {
         }
 
         // Handle special commands
-        if (message.toLowerCase().includes('count') || message.toLowerCase().includes('analyze')) {
+        const lowerMessage = message.toLowerCase();
+        
+        if (lowerMessage === 'count tests' || lowerMessage === 'analyze framework' || lowerMessage === 'analyse framework') {
             try {
                 console.log('🔍 Analyzing framework...\n');
                 
@@ -50,7 +52,7 @@ async function chat() {
             }
         }
 
-        if (message.toLowerCase().includes('coverage')) {
+        if (lowerMessage === 'coverage') {
             try {
                 console.log('📊 Analyzing coverage...\n');
                 
