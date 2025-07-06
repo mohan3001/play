@@ -7,6 +7,27 @@ const config: Config = {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  safelist: [
+    "bg-background",
+    "text-foreground",
+    "bg-card",
+    "text-card-foreground",
+    "bg-primary",
+    "text-primary-foreground",
+    "bg-secondary",
+    "text-secondary-foreground",
+    "bg-muted",
+    "text-muted-foreground",
+    "bg-accent",
+    "text-accent-foreground",
+    "bg-popover",
+    "text-popover-foreground",
+    "bg-destructive",
+    "text-destructive-foreground",
+    "border-border",
+    "border-input",
+    "ring-ring",
+  ],
   theme: {
     container: {
       center: true,
@@ -74,4 +95,5 @@ const config: Config = {
   },
   plugins: [require("tailwindcss-animate")],
 };
+
 export default config; 

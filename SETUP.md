@@ -75,7 +75,7 @@ npx playwright install
 ### 1. Validate Framework
 
 ```bash
-# Run the validation script
+coucd # Run the validation script
 node validate-framework.js
 ```
 

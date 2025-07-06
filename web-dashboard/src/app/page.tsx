@@ -10,7 +10,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
+          <p className="text-gray-600">
             Welcome to your Playwright AI automation dashboard
           </p>
         </div>

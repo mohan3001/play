@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Play, Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import { formatDate, formatDuration } from "@/lib/utils"
+import { useEffect, useState } from "react"
 
 interface TestExecution {
   id: string
@@ -87,6 +88,15 @@ function getStatusVariant(status: TestExecution['status']) {
 }
 
 export function RecentTests() {
+  // Helper to format date on client only
+  function ClientDate({ timestamp }: { timestamp: string }) {
+    const [formatted, setFormatted] = useState("")
+    useEffect(() => {
+      setFormatted(formatDate(timestamp))
+    }, [timestamp])
+    return <span>{formatted}</span>
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -111,7 +121,7 @@ export function RecentTests() {
                     <Clock className="h-3 w-3" />
                     <span>{formatDuration(test.duration)}</span>
                     <span>•</span>
-                    <span>{formatDate(test.timestamp)}</span>
+                    <ClientDate timestamp={test.timestamp} />
                   </div>
                   {test.error && (
                     <p className="text-xs text-red-600 mt-1">{test.error}</p>
