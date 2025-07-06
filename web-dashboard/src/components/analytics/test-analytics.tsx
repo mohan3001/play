@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -19,7 +20,8 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts'
-import { TrendingUp, TrendingDown, CheckCircle, XCircle, Clock } from "lucide-react"
+import { TrendingUp, TrendingDown, CheckCircle, XCircle, Clock, Loader2, RefreshCw } from "lucide-react"
+import { apiClient } from "@/lib/api"
 
 const testExecutionData = [
   { date: 'Mon', passed: 45, failed: 5, skipped: 2 },
@@ -54,6 +56,70 @@ const performanceData = [
 ]
 
 export function TestAnalytics() {
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [performanceData, setPerformanceData] = useState<any>(null)
+  const [coverageData, setCoverageData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadAnalyticsData()
+  }, [])
+
+  const loadAnalyticsData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const [analytics, performance, coverage] = await Promise.all([
+        apiClient.getAnalyticsData('7d'),
+        apiClient.getPerformanceMetrics(),
+        apiClient.getCoverageData()
+      ])
+      
+      setAnalyticsData(analytics)
+      setPerformanceData(performance)
+      setCoverageData(coverage)
+    } catch (error) {
+      console.error('Failed to load analytics data:', error)
+      setError('Failed to load analytics data. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Loading analytics data...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-red-600 mb-4">{error}</p>
+            <button 
+              onClick={loadAnalyticsData}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Test Execution Trends */}
@@ -69,7 +135,7 @@ export function TestAnalytics() {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={testExecutionData}>
+            <LineChart data={analyticsData?.testExecutionTrends || testExecutionData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
@@ -109,7 +175,7 @@ export function TestAnalytics() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={testCoverageData}>
+              <BarChart data={analyticsData?.testCoverage || testCoverageData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
@@ -158,7 +224,7 @@ export function TestAnalytics() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {performanceData.map((test, index) => (
+            {performanceData?.map((test: any, index: number) => (
               <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                 <div className="flex-1">
                   <h4 className="font-medium">{test.test}</h4>

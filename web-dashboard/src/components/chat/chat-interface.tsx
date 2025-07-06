@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Send, Bot, User, Loader2, Sparkles, FileText, Play, GitBranch } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { apiClient, AIResponse } from "@/lib/api"
 
 interface Message {
   id: string
@@ -53,21 +54,36 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     }
 
     setMessages(prev => [...prev, userMessage])
+    const currentInput = inputValue
     setInputValue('')
     setIsLoading(true)
 
-    // Simulate AI response - in real implementation, this would call your AI layer
-    setTimeout(() => {
+    try {
+      // Call real AI service
+      const sessionId = 'web-dashboard-session'
+      const response = await apiClient.sendChatMessage(currentInput, sessionId)
+      
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: generateAIResponse(inputValue),
+        content: response.message,
         timestamp: new Date(),
-        isSpecialCommand: isSpecialCommand(inputValue)
+        isSpecialCommand: isSpecialCommand(currentInput)
       }
+      
       setMessages(prev => [...prev, aiResponse])
+    } catch (error) {
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        timestamp: new Date(),
+        isSpecialCommand: false
+      }
+      setMessages(prev => [...prev, errorResponse])
+    } finally {
       setIsLoading(false)
-    }, 1500)
+    }
   }
 
   const isSpecialCommand = (input: string): boolean => {

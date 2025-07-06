@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,280 +13,86 @@ import {
   Plus,
   Search,
   Filter,
-  ChevronDown,
-  ChevronRight
+  Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-interface TestFile {
-  id: string
-  name: string
-  type: 'feature' | 'spec' | 'step' | 'page' | 'util'
-  path: string
-  status: 'active' | 'deprecated' | 'draft'
-  lastModified: Date
-  size: number
-  testCount?: number
-  children?: TestFile[]
-}
+import { apiClient, TestFile } from "@/lib/api"
 
 interface TestFileBrowserProps {
   className?: string
 }
 
-const mockTestFiles: TestFile[] = [
-  {
-    id: '1',
-    name: 'automation',
-    type: 'util',
-    path: '/automation',
-    status: 'active',
-    lastModified: new Date(),
-    size: 0,
-    children: [
-      {
-        id: '2',
-        name: 'tests',
-        type: 'util',
-        path: '/automation/tests',
-        status: 'active',
-        lastModified: new Date(),
-        size: 0,
-        children: [
-          {
-            id: '3',
-            name: 'features',
-            type: 'util',
-            path: '/automation/tests/features',
-            status: 'active',
-            lastModified: new Date(),
-            size: 0,
-            children: [
-              {
-                id: '4',
-                name: 'login.feature',
-                type: 'feature',
-                path: '/automation/tests/features/login.feature',
-                status: 'active',
-                lastModified: new Date(Date.now() - 86400000),
-                size: 2048,
-                testCount: 3
-              }
-            ]
-          },
-          {
-            id: '5',
-            name: 'steps',
-            type: 'util',
-            path: '/automation/tests/steps',
-            status: 'active',
-            lastModified: new Date(),
-            size: 0,
-            children: [
-              {
-                id: '6',
-                name: 'loginSteps.ts',
-                type: 'step',
-                path: '/automation/tests/steps/loginSteps.ts',
-                status: 'active',
-                lastModified: new Date(Date.now() - 172800000),
-                size: 4096,
-                testCount: 3
-              }
-            ]
-          },
-          {
-            id: '7',
-            name: 'login.spec.ts',
-            type: 'spec',
-            path: '/automation/tests/login.spec.ts',
-            status: 'active',
-            lastModified: new Date(Date.now() - 259200000),
-            size: 3072,
-            testCount: 4
-          },
-          {
-            id: '8',
-            name: 'inventory.spec.ts',
-            type: 'spec',
-            path: '/automation/tests/inventory.spec.ts',
-            status: 'active',
-            lastModified: new Date(Date.now() - 345600000),
-            size: 2560,
-            testCount: 3
-          },
-          {
-            id: '9',
-            name: 'checkout.spec.ts',
-            type: 'spec',
-            path: '/automation/tests/checkout.spec.ts',
-            status: 'active',
-            lastModified: new Date(Date.now() - 432000000),
-            size: 5120,
-            testCount: 5
-          }
-        ]
-      },
-      {
-        id: '10',
-        name: 'src',
-        type: 'util',
-        path: '/automation/src',
-        status: 'active',
-        lastModified: new Date(),
-        size: 0,
-        children: [
-          {
-            id: '11',
-            name: 'pages',
-            type: 'util',
-            path: '/automation/src/pages',
-            status: 'active',
-            lastModified: new Date(),
-            size: 0,
-            children: [
-              {
-                id: '12',
-                name: 'shop',
-                type: 'util',
-                path: '/automation/src/pages/shop',
-                status: 'active',
-                lastModified: new Date(),
-                size: 0,
-                children: [
-                  {
-                    id: '13',
-                    name: 'CartPage.ts',
-                    type: 'page',
-                    path: '/automation/src/pages/shop/CartPage.ts',
-                    status: 'active',
-                    lastModified: new Date(Date.now() - 518400000),
-                    size: 2048
-                  },
-                  {
-                    id: '14',
-                    name: 'CheckoutPage.ts',
-                    type: 'page',
-                    path: '/automation/src/pages/shop/CheckoutPage.ts',
-                    status: 'active',
-                    lastModified: new Date(Date.now() - 604800000),
-                    size: 3072
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-]
-
-function getFileIcon(type: TestFile['type']) {
-  switch (type) {
-    case 'feature':
-      return <FileText className="h-4 w-4 text-green-600" />
-    case 'spec':
-      return <Play className="h-4 w-4 text-blue-600" />
-    case 'step':
-      return <FileText className="h-4 w-4 text-purple-600" />
-    case 'page':
-      return <FileText className="h-4 w-4 text-orange-600" />
-    case 'util':
-      return <Folder className="h-4 w-4 text-gray-600" />
-  }
-}
-
-function getStatusVariant(status: TestFile['status']) {
-  switch (status) {
-    case 'active':
-      return 'success' as const
-    case 'deprecated':
-      return 'warning' as const
-    case 'draft':
-      return 'info' as const
-  }
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
-}
-
-function TestFileItem({ file, level = 0 }: { file: TestFile; level?: number }) {
-  const [isExpanded, setIsExpanded] = useState(level < 2)
-  const hasChildren = file.children && file.children.length > 0
-
-  return (
-    <div>
-      <div 
-        className={cn(
-          "flex items-center justify-between p-2 rounded hover:bg-gray-50 cursor-pointer",
-          level > 0 && "ml-4"
-        )}
-      >
-        <div className="flex items-center gap-2">
-          {hasChildren && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="p-1 hover:bg-gray-200 rounded"
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-3 w-3" />
-              ) : (
-                <ChevronRight className="h-3 w-3" />
-              )}
-            </button>
-          )}
-          {getFileIcon(file.type)}
-          <span className="text-sm font-medium">{file.name}</span>
-          {file.testCount && (
-            <Badge variant="outline" className="text-xs">
-              {file.testCount} tests
-            </Badge>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Badge variant={getStatusVariant(file.status)} className="text-xs">
-            {file.status}
-          </Badge>
-          {file.size > 0 && (
-            <span className="text-xs text-gray-500">
-              {formatFileSize(file.size)}
-            </span>
-          )}
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-              <Play className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-              <Edit className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
-      
-      {hasChildren && isExpanded && (
-        <div className="ml-4">
-          {file.children!.map((child) => (
-            <TestFileItem key={child.id} file={child} level={level + 1} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export function TestFileBrowser({ className }: TestFileBrowserProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterType, setFilterType] = useState<TestFile['type'] | 'all'>('all')
+  const [filterType, setFilterType] = useState<'feature' | 'spec' | 'step' | 'all'>('all')
+  const [testFiles, setTestFiles] = useState<TestFile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadTestFiles()
+  }, [])
+
+  const loadTestFiles = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const files = await apiClient.getTestFiles()
+      setTestFiles(files)
+    } catch (error) {
+      console.error('Failed to load test files:', error)
+      setError('Failed to load test files. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredFiles = testFiles.filter(file => {
+    const matchesSearch = file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         file.relativePath.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesFilter = filterType === 'all' || file.type === filterType
+    return matchesSearch && matchesFilter
+  })
+
+  const getFileIcon = (type: string) => {
+    switch (type) {
+      case 'feature':
+        return <FileText className="h-4 w-4 text-green-600" />
+      case 'spec':
+        return <Play className="h-4 w-4 text-blue-600" />
+      case 'step':
+        return <FileText className="h-4 w-4 text-purple-600" />
+      default:
+        return <FileText className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  }
+
+  const handleRunTest = async (file: TestFile) => {
+    try {
+      console.log(`Running test: ${file.name}`)
+      // TODO: Implement test execution
+    } catch (error) {
+      console.error('Failed to run test:', error)
+    }
+  }
+
+  const handleEditTest = (file: TestFile) => {
+    console.log(`Editing test: ${file.name}`)
+    // TODO: Implement test editing
+  }
+
+  const handleDeleteTest = (file: TestFile) => {
+    console.log(`Deleting test: ${file.name}`)
+    // TODO: Implement test deletion
+  }
 
   return (
     <Card className={className}>
@@ -318,19 +124,87 @@ export function TestFileBrowser({ className }: TestFileBrowserProps) {
           </Button>
         </div>
 
-        {/* File Tree */}
+        {/* File List */}
         <div className="border rounded-lg">
-          {mockTestFiles.map((file) => (
-            <TestFileItem key={file.id} file={file} />
-          ))}
+          {loading ? (
+            <div className="p-4 text-center text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+              Loading test files...
+            </div>
+          ) : error ? (
+            <div className="p-4 text-center text-red-500">
+              {error}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2"
+                onClick={loadTestFiles}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : filteredFiles.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">
+              {searchTerm || filterType !== 'all' ? 'No test files match your search criteria' : 'No test files found'}
+            </div>
+          ) : (
+            filteredFiles.map((file) => (
+              <div key={file.path} className="flex items-center justify-between p-2 border-b last:border-b-0 hover:bg-gray-50">
+                <div className="flex items-center gap-2">
+                  {getFileIcon(file.type)}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{file.name}</span>
+                    <span className="text-xs text-gray-500">{file.relativePath}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">
+                    {formatFileSize(file.size)}
+                  </span>
+                  <Badge variant="outline" className="text-xs">
+                    {file.type}
+                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0"
+                      onClick={() => handleRunTest(file)}
+                      title="Run test"
+                    >
+                      <Play className="h-3 w-3" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0"
+                      onClick={() => handleEditTest(file)}
+                      title="Edit test"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0"
+                      onClick={() => handleDeleteTest(file)}
+                      title="Delete test"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Summary */}
         <div className="mt-4 pt-4 border-t">
           <div className="flex justify-between text-sm text-gray-600">
-            <span>Total Files: 14</span>
-            <span>Total Tests: 18</span>
-            <span>Last Updated: 2 hours ago</span>
+            <span>Total Files: {testFiles.length}</span>
+            <span>Filtered: {filteredFiles.length}</span>
+            <span>Last Updated: {new Date().toLocaleTimeString()}</span>
           </div>
         </div>
       </CardContent>
