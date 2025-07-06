@@ -86,9 +86,9 @@ export class AIService {
 
   private async runCommandInAILayer(command: string, aiLayerPath: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const child = spawn('npm', ['run', 'chat'], {
+      const child = spawn('npm', ['run', 'ai-batch', '--', command], {
         cwd: aiLayerPath,
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['ignore', 'pipe', 'pipe']
       })
 
       let output = ''
@@ -109,10 +109,6 @@ export class AIService {
           reject(new Error(`Command failed with code ${code}: ${errorOutput}`))
         }
       })
-
-      // Send the command to the AI layer
-      child.stdin.write(command + '\n')
-      child.stdin.end()
     })
   }
 
