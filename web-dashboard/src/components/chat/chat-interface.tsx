@@ -22,6 +22,62 @@ interface ChatInterfaceProps {
   className?: string
 }
 
+// Smart suggestions based on context
+const getSuggestions = (messages: Message[], isLoading: boolean) => {
+  if (isLoading) return [];
+  
+  const lastMessage = messages[messages.length - 1];
+  const recentCommands = messages.slice(-5).map(m => m.content.toLowerCase());
+  
+  // Default suggestions
+  const defaultSuggestions = [
+    'run all tests',
+    'list all tests', 
+    'count tests',
+    'show last test run'
+  ];
+  
+  // Context-based suggestions
+  if (lastMessage?.content.toLowerCase().includes('test') || recentCommands.some(cmd => cmd.includes('test'))) {
+    return [
+      'run all tests',
+      'show failed tests',
+      'rerun last failed tests',
+      'list feature files',
+      'show test history'
+    ];
+  }
+  
+  if (lastMessage?.content.toLowerCase().includes('run') || recentCommands.some(cmd => cmd.includes('run'))) {
+    return [
+      'run tests tagged @smoke',
+      'run checkout.spec.ts',
+      'run feature file login.feature',
+      'show last execution results'
+    ];
+  }
+  
+  if (lastMessage?.content.toLowerCase().includes('report') || recentCommands.some(cmd => cmd.includes('report'))) {
+    return [
+      'open cucumber report in browser',
+      'open playwright report',
+      'show last test run',
+      'show failed tests'
+    ];
+  }
+  
+  if (lastMessage?.content.toLowerCase().includes('feature') || recentCommands.some(cmd => cmd.includes('feature'))) {
+    return [
+      'list feature files',
+      'run feature file login.feature',
+      'explain login feature file',
+      'show feature file structure'
+    ];
+  }
+  
+  return defaultSuggestions;
+};
+
 export function ChatInterface({ className }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -34,6 +90,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const suggestions = getSuggestions(messages, isLoading)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -94,8 +151,6 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     return specialCommands.some(cmd => input.toLowerCase().includes(cmd))
   }
 
-
-
   const quickActions = [
     { icon: FileText, label: 'Count Tests', command: 'count tests' },
     { icon: Play, label: 'Run Login', command: 'run login feature' },
@@ -106,6 +161,18 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   const handleQuickAction = (command: string) => {
     setInputValue(command)
   }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputValue.trim() && !isLoading) {
+      handleSendMessage();
+      setInputValue('');
+    }
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setInputValue(suggestion);
+  };
 
   return (
     <Card className={cn("h-full flex flex-col", className)}>
@@ -185,43 +252,51 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
           <div ref={messagesEndRef} />
         </div>
         
-        {/* Quick Actions */}
-        <div className="border-t p-4">
-          <div className="flex gap-2 mb-3 overflow-x-auto">
-            {quickActions.map((action) => (
-              <Button
-                key={action.label}
-                variant="outline"
-                size="sm"
-                onClick={() => handleQuickAction(action.command)}
-                className="flex-shrink-0"
-              >
-                <action.icon className="h-3 w-3 mr-1" />
-                {action.label}
-              </Button>
-            ))}
+        {/* Smart Suggestions */}
+        {suggestions.length > 0 && (
+          <div className="px-4 pb-2">
+            <p className="text-xs text-gray-500 mb-2">💡 Quick suggestions:</p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  disabled={isLoading}
+                  className="text-xs h-8 px-3"
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
           </div>
-          
-          {/* Input Area */}
+        )}
+        
+        {/* Input Area */}
+        <form onSubmit={handleSubmit} className="p-4 border-t">
           <div className="flex gap-2">
             <input
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
               placeholder="Ask me anything about your tests, framework, or automation..."
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isLoading}
             />
             <Button
-              onClick={handleSendMessage}
+              type="submit"
               disabled={!inputValue.trim() || isLoading}
               size="sm"
             >
-              <Send className="h-4 w-4" />
+              {isLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                'Send'
+              )}
             </Button>
           </div>
-        </div>
+        </form>
       </CardContent>
     </Card>
   )

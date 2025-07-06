@@ -175,7 +175,10 @@ async function main() {
         break;
       }
       case 'run_all_tests': {
-        const result = execSync('npx playwright test', { encoding: 'utf8' });
+        const result = execSync('npx playwright test', { 
+          encoding: 'utf8',
+          cwd: path.join(__dirname, '../../../automation')
+        });
         console.log(result);
         break;
       }
@@ -185,7 +188,10 @@ async function main() {
           console.log('❌ Please specify the test name.');
           break;
         }
-        const result = execSync(`npx playwright test ${testName}`, { encoding: 'utf8' });
+        const result = execSync(`npx playwright test ${testName}`, { 
+          encoding: 'utf8',
+          cwd: path.join(__dirname, '../../../automation')
+        });
         console.log(result);
         break;
       }
@@ -196,12 +202,18 @@ async function main() {
           console.log('❌ Please specify a tag (e.g., @smoke).');
           break;
         }
-        const result = execSync(`npx playwright test --grep ${tag}`, { encoding: 'utf8' });
+        const result = execSync(`npx playwright test --grep ${tag}`, { 
+          encoding: 'utf8',
+          cwd: path.join(__dirname, '../../../automation')
+        });
         console.log(result);
         break;
       }
       case 'list_all_tests': {
-        const files = execSync('find ../automation/tests -name "*.spec.ts"', { encoding: 'utf8' });
+        const files = execSync('find tests -name "*.spec.ts"', { 
+          encoding: 'utf8',
+          cwd: path.join(__dirname, '../../../automation')
+        });
         console.log('Test files:\n' + files);
         break;
       }
@@ -238,7 +250,10 @@ async function main() {
           const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
           const failed = report.failed || [];
           if (failed.length) {
-            const result = execSync(`npx playwright test ${failed.join(' ')}`, { encoding: 'utf8' });
+            const result = execSync(`npx playwright test ${failed.join(' ')}`, { 
+              encoding: 'utf8',
+              cwd: path.join(__dirname, '../../../automation')
+            });
             console.log(result);
           } else {
             console.log('✅ No failed tests to rerun.');
@@ -249,7 +264,10 @@ async function main() {
         break;
       }
       case 'list_feature_files': {
-        const files = execSync('find ../automation/tests/features -name "*.feature"', { encoding: 'utf8' });
+        const files = execSync('find tests/features -name "*.feature"', { 
+          encoding: 'utf8',
+          cwd: path.join(__dirname, '../../../automation')
+        });
         console.log('Feature files:\n' + files);
         break;
       }
@@ -259,7 +277,10 @@ async function main() {
           console.log('❌ Please specify the feature file name.');
           break;
         }
-        const result = execSync(`cd ../automation && npx cucumber-js tests/features/${featureFile} --config cucumber.js --format summary`, { encoding: 'utf8' });
+        const result = execSync(`npx cucumber-js tests/features/${featureFile} --config cucumber.js --format summary`, { 
+          encoding: 'utf8',
+          cwd: path.join(__dirname, '../../../automation')
+        });
         console.log(result);
         break;
       }
