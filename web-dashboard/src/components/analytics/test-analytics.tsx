@@ -41,11 +41,7 @@ const testCoverageData = [
   { name: 'Profile', coverage: 78, tests: 10 }
 ]
 
-const testStatusData = [
-  { name: 'Passed', value: 85, color: '#10b981' },
-  { name: 'Failed', value: 10, color: '#ef4444' },
-  { name: 'Skipped', value: 5, color: '#f59e0b' }
-]
+// testStatusData will be calculated from real analytics data
 
 const performanceData = [
   { test: 'Login Flow', avgTime: 2.3, minTime: 1.8, maxTime: 3.1 },
@@ -197,7 +193,11 @@ export function TestAnalytics() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={testStatusData}
+                  data={analyticsData?.summary ? [
+                    { name: 'Passed', value: analyticsData.summary.totalTests * (analyticsData.summary.successRate / 100), color: '#10b981' },
+                    { name: 'Failed', value: analyticsData.summary.totalTests * ((100 - analyticsData.summary.successRate) / 100), color: '#ef4444' },
+                    { name: 'Skipped', value: 0, color: '#f59e0b' }
+                  ] : []}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -206,7 +206,11 @@ export function TestAnalytics() {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {testStatusData.map((entry, index) => (
+                  {(analyticsData?.summary ? [
+                    { name: 'Passed', value: analyticsData.summary.totalTests * (analyticsData.summary.successRate / 100), color: '#10b981' },
+                    { name: 'Failed', value: analyticsData.summary.totalTests * ((100 - analyticsData.summary.successRate) / 100), color: '#ef4444' },
+                    { name: 'Skipped', value: 0, color: '#f59e0b' }
+                  ] : []).map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -259,7 +263,7 @@ export function TestAnalytics() {
             <div className="flex items-center space-x-2">
               <TrendingUp className="h-8 w-8 text-green-600" />
               <div>
-                <p className="text-2xl font-bold">94.2%</p>
+                <p className="text-2xl font-bold">{analyticsData?.summary?.successRate || 0}%</p>
                 <p className="text-sm text-gray-600">Success Rate</p>
               </div>
             </div>
@@ -271,7 +275,7 @@ export function TestAnalytics() {
             <div className="flex items-center space-x-2">
               <Clock className="h-8 w-8 text-blue-600" />
               <div>
-                <p className="text-2xl font-bold">2.3s</p>
+                <p className="text-2xl font-bold">{analyticsData?.summary?.avgDuration || 0}s</p>
                 <p className="text-sm text-gray-600">Avg Duration</p>
               </div>
             </div>
@@ -283,7 +287,7 @@ export function TestAnalytics() {
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-8 w-8 text-green-600" />
               <div>
-                <p className="text-2xl font-bold">1,234</p>
+                <p className="text-2xl font-bold">{analyticsData?.summary?.totalTests || 0}</p>
                 <p className="text-sm text-gray-600">Tests Run</p>
               </div>
             </div>
@@ -295,7 +299,7 @@ export function TestAnalytics() {
             <div className="flex items-center space-x-2">
               <TrendingDown className="h-8 w-8 text-red-600" />
               <div>
-                <p className="text-2xl font-bold">5.8%</p>
+                <p className="text-2xl font-bold">{100 - (analyticsData?.summary?.successRate || 0)}%</p>
                 <p className="text-sm text-gray-600">Failure Rate</p>
               </div>
             </div>
