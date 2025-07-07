@@ -1,6 +1,6 @@
 # Playwright AI Web Dashboard
 
-An enterprise-level web dashboard for AI-powered Playwright test automation, providing real-time monitoring, intelligent test management, and seamless integration with your automation framework.
+An enterprise-level web dashboard for AI-powered Playwright test automation, providing real-time monitoring, intelligent test management, and seamless integration with your linked Playwright repository (local or remote).
 
 ## 🚀 Features
 

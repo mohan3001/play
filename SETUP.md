@@ -217,4 +217,12 @@ If you encounter issues:
 - [Playwright Documentation](https://playwright.dev/)
 - [Ollama Documentation](https://ollama.ai/docs)
 - [Cucumber Documentation](https://cucumber.io/docs)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/) 
+- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
+
+# Setup Instructions
+
+1. Clone this repository.
+2. Link your local or remote Playwright repo using the Git Integration UI or API.
+3. Install dependencies in each package (ai-layer, api-gateway, web-dashboard).
+4. Configure your .env file as per env.example.
+5. Start the required services (see README.md for details). 

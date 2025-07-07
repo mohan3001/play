@@ -1,6 +1,12 @@
 # Enterprise Playwright AI Automation Framework
 
-A comprehensive, enterprise-grade automation framework that combines Playwright with AI capabilities for intelligent test generation, execution, and management.
+A comprehensive, enterprise-grade framework that combines Playwright with AI capabilities for intelligent test generation, execution, and management.
+
+## Getting Started
+
+- Link your local or remote Playwright repository using the Git Integration UI or API.
+- The system will use your linked repo for all test management and execution.
+- See SETUP.md for environment and configuration details.
 
 ## 🚀 Features
 
