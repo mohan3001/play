@@ -3,8 +3,12 @@ import { RecentTests } from "@/components/dashboard/recent-tests"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Play, Bot, GitBranch, FileText } from "lucide-react"
+import NoRepoLinked from '@/components/layout/NoRepoLinked'
 
 export default function DashboardPage() {
+  const repoLinked = false; // TODO: Replace with real logic
+  if (!repoLinked) return <NoRepoLinked />;
+
   return (
     <div className="flex-1 space-y-6 p-6">
       <div className="flex items-center justify-between">

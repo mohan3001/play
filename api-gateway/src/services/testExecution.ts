@@ -2,6 +2,7 @@ import { spawn } from 'child_process'
 import { logger } from '../utils/logger'
 import path from 'path'
 import { EventEmitter } from 'events'
+import { getLinkedRepoPathForUser } from '../utils/repoUtils'
 
 export interface TestExecutionOptions {
   browser?: 'chromium' | 'firefox' | 'webkit'
@@ -32,13 +33,8 @@ export class TestExecutionService extends EventEmitter {
   private async initialize(): Promise<void> {
     try {
       // Check if automation layer exists
-      const automationPath = path.join(process.cwd(), '..', 'automation')
-      const fs = require('fs')
-      
-      if (!fs.existsSync(automationPath)) {
-        logger.error('Automation layer not found')
-        return
-      }
+      const repoPath = await getLinkedRepoPathForUser(userId)
+      if (!repoPath) { throw new Error('No Playwright repo linked. Please link a repo first.') }
 
       this.isReady = true
       logger.info('Test execution service initialized successfully')
@@ -77,7 +73,8 @@ export class TestExecutionService extends EventEmitter {
 
   private async runTestExecution(executionId: string, testFile: string, options: TestExecutionOptions): Promise<void> {
     try {
-      const automationPath = path.join(process.cwd(), '..', 'automation')
+      const repoPath = await getLinkedRepoPathForUser(userId)
+      if (!repoPath) { throw new Error('No Playwright repo linked. Please link a repo first.') }
       
       // Build the Playwright command
       const args = ['test', testFile]
@@ -105,7 +102,7 @@ export class TestExecutionService extends EventEmitter {
       logger.info(`Running Playwright command: npx playwright ${args.join(' ')}`)
       
       const child = spawn('npx', ['playwright', ...args], {
-        cwd: automationPath,
+        cwd: repoPath,
         stdio: ['pipe', 'pipe', 'pipe']
       })
       
@@ -251,9 +248,8 @@ export class TestExecutionService extends EventEmitter {
 
   public async healthCheck(): Promise<boolean> {
     try {
-      const automationPath = path.join(process.cwd(), '..', 'automation')
-      const fs = require('fs')
-      return fs.existsSync(automationPath)
+      const repoPath = await getLinkedRepoPathForUser(userId)
+      return repoPath !== null
     } catch (error) {
       logger.error('Test execution health check failed:', error)
       return false

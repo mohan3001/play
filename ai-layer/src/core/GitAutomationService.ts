@@ -1,6 +1,9 @@
 import { execSync } from 'child_process';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
+import fs from 'fs';
+import path from 'path';
+import { RepoMetadata } from '../types/AITypes';
 
 export interface GitOperation {
     type: 'create_branch' | 'commit' | 'push' | 'merge' | 'revert';
@@ -311,4 +314,63 @@ export class GitAutomationService {
             return [];
         }
     }
+}
+
+export async function extractRepoMetadata(repoPath: string): Promise<RepoMetadata> {
+    // Scan for POMs (Page Object Models)
+    const poms: string[] = [];
+    const pomDir = path.join(repoPath, 'src', 'pages');
+    if (fs.existsSync(pomDir)) {
+        for (const file of fs.readdirSync(pomDir)) {
+            if (file.endsWith('.ts') && file !== 'BasePage.ts') {
+                poms.push(file.replace('.ts', ''));
+            }
+        }
+    }
+
+    // Scan for utilities
+    const utilities: string[] = [];
+    const utilsDir = path.join(repoPath, 'src', 'utils');
+    if (fs.existsSync(utilsDir)) {
+        for (const file of fs.readdirSync(utilsDir)) {
+            if (file.endsWith('.ts')) {
+                utilities.push(file.replace('.ts', ''));
+            }
+        }
+    }
+
+    // Get baseUrl from playwright.config.ts (simple regex)
+    let baseUrl = '';
+    const configPath = path.join(repoPath, 'playwright.config.ts');
+    if (fs.existsSync(configPath)) {
+        const configContent = fs.readFileSync(configPath, 'utf8');
+        const match = configContent.match(/baseURL:\s*['"]([^'"]+)['"]/);
+        if (match) baseUrl = match[1];
+    }
+
+    // Find test folders
+    const testFolders: string[] = [];
+    const testsDir = path.join(repoPath, 'tests');
+    if (fs.existsSync(testsDir)) {
+        for (const file of fs.readdirSync(testsDir)) {
+            const fullPath = path.join(testsDir, file);
+            if (fs.statSync(fullPath).isDirectory()) {
+                testFolders.push(`tests/${file}`);
+            }
+        }
+    }
+
+    // User roles (simple heuristic: look for roles in test data or config)
+    const userRoles: string[] = [];
+    const testDataPath = path.join(repoPath, 'data', 'test-data.json');
+    if (fs.existsSync(testDataPath)) {
+        try {
+            const testData = JSON.parse(fs.readFileSync(testDataPath, 'utf8'));
+            if (Array.isArray(testData.roles)) {
+                userRoles.push(...testData.roles);
+            }
+        } catch {}
+    }
+
+    return { poms, utilities, baseUrl, testFolders, userRoles };
 } 

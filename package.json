@@ -5,14 +5,10 @@
   "main": "index.js",
   "scripts": {
     "setup": "npm run setup:all",
-    "setup:all": "npm run setup:automation && npm run setup:ai-layer && npm run setup:api-gateway && npm run setup:web-dashboard",
-    "setup:automation": "cd automation && npm install",
+    "setup:all": "npm run setup:ai-layer && npm run setup:api-gateway && npm run setup:web-dashboard",
     "setup:ai-layer": "cd ai-layer && npm install",
     "setup:api-gateway": "cd api-gateway && npm install",
     "setup:web-dashboard": "cd web-dashboard && npm install",
-    "test": "cd automation && npm test",
-    "test:headed": "cd automation && npm run test:headed",
-    "test:debug": "cd automation && npm run test:debug",
     "ai:generate": "cd ai-layer && npm run generate",
     "ai:chat": "cd ai-layer && npm run chat",
     "api:start": "cd api-gateway && npm start",
@@ -21,8 +17,7 @@
     "web:dev": "cd web-dashboard && npm run dev",
     "dev": "concurrently \"npm run api:dev\" \"npm run web:dev\"",
     "build": "npm run build:all",
-    "build:all": "npm run build:automation && npm run build:ai-layer && npm run build:api-gateway && npm run build:web-dashboard",
-    "build:automation": "cd automation && npm run build",
+    "build:all": "npm run build:ai-layer && npm run build:api-gateway && npm run build:web-dashboard",
     "build:ai-layer": "cd ai-layer && npm run build",
     "build:api-gateway": "cd api-gateway && npm run build",
     "build:web-dashboard": "cd web-dashboard && npm run build"
@@ -38,15 +33,17 @@
   "author": "Enterprise Playwright AI Team",
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^20.10.5",
     "concurrently": "^8.2.2",
-    "typescript": "^5.3.3",
-    "@types/node": "^20.10.5"
+    "typescript": "^5.3.3"
   },
   "workspaces": [
-    "automation",
     "ai-layer",
     "api-gateway",
     "web-dashboard",
     "shared"
-  ]
-} 
+  ],
+  "dependencies": {
+    "lucide-react": "^0.525.0"
+  }
+}

@@ -156,4 +156,23 @@ export interface TestResult {
     metadata: any;
 }
 
-export type IsolationLevel = 'NONE' | 'TENANT' | 'USER' | 'SESSION'; 
+export type IsolationLevel = 'NONE' | 'TENANT' | 'USER' | 'SESSION';
+
+export interface RepoMetadata {
+    poms: string[];
+    utilities: string[];
+    baseUrl: string;
+    testFolders: string[];
+    userRoles: string[];
+}
+
+model LinkedRepo {
+  id             Int      @id @default(autoincrement())
+  userId         String
+  repoType       String   // 'local' or 'remote'
+  localPath      String?  // for local repos
+  remoteUrl      String?  // for remote repos
+  playwrightRoot String?  // path to Playwright config root
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+} 

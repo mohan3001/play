@@ -1,9 +1,11 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
+import NoRepoLinked from '@/components/layout/NoRepoLinked';
+import { useRouter } from 'next/navigation';
 
 interface RepoInfo {
   path: string;
@@ -14,11 +16,15 @@ interface RepoInfo {
 
 export default function GitIntegrationPage() {
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
-  const [repoPath, setRepoPath] = useState('');
   const [repoType, setRepoType] = useState<'local' | 'remote'>('local');
+  const [localPath, setLocalPath] = useState('');
+  const [remoteUrl, setRemoteUrl] = useState('');
   const [accessToken, setAccessToken] = useState('');
+  const [playwrightRoot, setPlaywrightRoot] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [repoLinked, setRepoLinked] = useState(false); // TODO: Replace with real logic
+  const router = useRouter();
 
   useEffect(() => {
     // Load current repo info
@@ -37,57 +43,58 @@ export default function GitIntegrationPage() {
     }
   };
 
-  const handleLinkRepo = async () => {
+  const handleLink = async () => {
+    setMessage('Linking...');
     setIsLoading(true);
-    setMessage('');
-
+    const body = repoType === 'local'
+      ? { path: localPath, type: 'local', playwrightRoot }
+      : { path: remoteUrl, type: 'remote', accessToken, playwrightRoot };
     try {
-      const response = await fetch('/api/git/link', {
+      const res = await fetch('/api/git/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: repoPath,
-          type: repoType,
-          accessToken: repoType === 'remote' ? accessToken : undefined
-        })
+        body: JSON.stringify(body),
       });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        setMessage('✅ Repository linked successfully!');
-        setRepoPath('');
-        setAccessToken('');
+      const data = await res.json();
+      setMessage(data.success ? 'Repository linked!' : data.error || 'Failed to link repo');
+      if (data.success) {
+        setRepoLinked(true);
         fetchRepoInfo();
-      } else {
-        setMessage(`❌ ${data.error || 'Failed to link repository'}`);
+        setLocalPath('');
+        setRemoteUrl('');
+        setAccessToken('');
+        setPlaywrightRoot('');
+        setTimeout(() => {
+          router.push('/chat?repoLinked=1');
+        }, 1000);
       }
-    } catch (error) {
-      setMessage('❌ Failed to connect to server');
+    } catch (err) {
+      setMessage('Failed to link repo');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleUnlinkRepo = async () => {
+  const handleUnlink = async () => {
+    setMessage('Unlinking...');
     setIsLoading(true);
-    setMessage('');
-
     try {
-      const response = await fetch('/api/git/unlink', { method: 'POST' });
-      
-      if (response.ok) {
-        setMessage('✅ Repository unlinked successfully!');
+      const res = await fetch('/api/git/unlink', { method: 'POST' });
+      const data = await res.json();
+      setMessage(data.success ? 'Repository unlinked!' : data.error || 'Failed to unlink repo');
+      if (data.success) {
         setRepoInfo(null);
-      } else {
-        setMessage('❌ Failed to unlink repository');
       }
-    } catch (error) {
-      setMessage('❌ Failed to connect to server');
+    } catch (err) {
+      setMessage('Failed to unlink repo');
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (repoLinked) {
+    return <NoRepoLinked cta={false} />;
+  }
 
   return (
     <div className="container mx-auto p-6">
@@ -121,7 +128,7 @@ export default function GitIntegrationPage() {
                 </p>
               )}
               <Button 
-                onClick={handleUnlinkRepo} 
+                onClick={handleUnlink} 
                 variant="outline" 
                 disabled={isLoading}
                 className="mt-4"
@@ -140,64 +147,74 @@ export default function GitIntegrationPage() {
             <CardTitle>Link Repository</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Repository Type
+            <div className="mb-4">
+              <label className="mr-4">
+                <input type="radio" checked={repoType === 'local'} onChange={() => setRepoType('local')} />
+                <span className="ml-2">Local Directory</span>
               </label>
-              <div className="flex gap-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="local"
-                    checked={repoType === 'local'}
-                    onChange={(e) => setRepoType(e.target.value as 'local' | 'remote')}
-                    className="mr-2"
-                  />
-                  Local Directory
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="remote"
-                    checked={repoType === 'remote'}
-                    onChange={(e) => setRepoType(e.target.value as 'local' | 'remote')}
-                    className="mr-2"
-                  />
-                  Remote Repository
-                </label>
-              </div>
+              <label>
+                <input type="radio" checked={repoType === 'remote'} onChange={() => setRepoType('remote')} />
+                <span className="ml-2">Remote Repository</span>
+              </label>
             </div>
+
+            {repoType === 'local' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Local Path
+                </label>
+                <input
+                  type="text"
+                  value={localPath}
+                  onChange={(e) => setLocalPath(e.target.value)}
+                  placeholder="Path to Playwright project root"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Repository URL
+                  </label>
+                  <input
+                    type="text"
+                    value={remoteUrl}
+                    onChange={(e) => setRemoteUrl(e.target.value)}
+                    placeholder="Repository URL"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Personal Access Token
+                  </label>
+                  <input
+                    type="password"
+                    value={accessToken}
+                    onChange={(e) => setAccessToken(e.target.value)}
+                    placeholder="Enter your GitHub/GitLab access token"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Required for private repositories. Your token is stored securely.
+                  </p>
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {repoType === 'local' ? 'Local Path' : 'Repository URL'}
+                Playwright Project Root Path (optional)
               </label>
               <input
                 type="text"
-                value={repoPath}
-                onChange={(e) => setRepoPath(e.target.value)}
-                placeholder={repoType === 'local' ? '/path/to/playwright/repo' : 'https://github.com/user/repo.git'}
+                value={playwrightRoot}
+                onChange={(e) => setPlaywrightRoot(e.target.value)}
+                placeholder="Path to Playwright project root"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
-            {repoType === 'remote' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Personal Access Token
-                </label>
-                <input
-                  type="password"
-                  value={accessToken}
-                  onChange={(e) => setAccessToken(e.target.value)}
-                  placeholder="Enter your GitHub/GitLab access token"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Required for private repositories. Your token is stored securely.
-                </p>
-              </div>
-            )}
 
             {message && (
               <div className={`p-3 rounded-md ${message.includes('✅') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
@@ -206,8 +223,8 @@ export default function GitIntegrationPage() {
             )}
 
             <Button 
-              onClick={handleLinkRepo} 
-              disabled={!repoPath || isLoading}
+              onClick={handleLink} 
+              disabled={!localPath && !remoteUrl || isLoading}
               className="w-full"
             >
               {isLoading ? 'Linking...' : 'Link Repository'}

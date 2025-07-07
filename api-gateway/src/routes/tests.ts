@@ -4,6 +4,7 @@ import { validateRequest } from '../middleware/validation'
 import Joi from 'joi'
 import path from 'path'
 import fs from 'fs'
+import { getLinkedRepoPathForUser } from '../utils/repoUtils'
 
 const router = Router()
 const testExecutionService = new TestExecutionService()
@@ -21,23 +22,17 @@ const executionSchema = Joi.object({
 })
 
 // Get test files
-router.get('/files', async (_req, res) => {
+router.get('/files', async (req, res) => {
   try {
-    const automationPath = path.join(process.cwd(), '..', 'automation')
-    const testFiles = await scanTestFiles(automationPath)
-    
-    res.json({
-      success: true,
-      data: testFiles
-    })
+    const userId = req.user?.id // or however you get the user ID
+    const repoPath = await getLinkedRepoPathForUser(userId)
+    if (!repoPath) {
+      return res.status(400).json({ success: false, error: { message: 'No Playwright repo linked. Please link a repo first.' } })
+    }
+    const testFiles = await scanTestFiles(repoPath)
+    res.json({ success: true, data: testFiles })
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: {
-        message: 'Failed to get test files',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }
-    })
+    res.status(500).json({ success: false, error: { message: 'Failed to get test files', details: error instanceof Error ? error.message : 'Unknown error' } })
   }
 })
 
@@ -178,17 +173,15 @@ router.get('/status', async (_req, res) => {
 })
 
 // Helper function to scan test files
-async function scanTestFiles(dir: string): Promise<any[]> {
+async function scanTestFiles(dir: string, repoRoot?: string): Promise<any[]> {
   const files: any[] = []
-  
+  repoRoot = repoRoot || dir
   try {
     const items = await fs.promises.readdir(dir, { withFileTypes: true })
-    
     for (const item of items) {
       const fullPath = path.join(dir, item.name)
-      
       if (item.isDirectory()) {
-        const subFiles = await scanTestFiles(fullPath)
+        const subFiles = await scanTestFiles(fullPath, repoRoot)
         files.push(...subFiles)
       } else if (item.isFile()) {
         const ext = path.extname(item.name)
@@ -197,10 +190,9 @@ async function scanTestFiles(dir: string): Promise<any[]> {
           files.push({
             name: item.name,
             path: fullPath,
-            relativePath: path.relative(path.join(process.cwd(), '..', 'automation'), fullPath),
+            relativePath: path.relative(repoRoot, fullPath),
             size: stats.size,
-            modified: stats.mtime,
-            type: ext === '.feature' ? 'feature' : ext === '.spec.ts' ? 'spec' : 'step'
+            modified: stats.mtime
           })
         }
       }
@@ -208,7 +200,6 @@ async function scanTestFiles(dir: string): Promise<any[]> {
   } catch (error) {
     console.error('Error scanning directory:', error)
   }
-  
   return files
 }
 

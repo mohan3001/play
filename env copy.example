@@ -1,0 +1,44 @@
+# Ollama Configuration
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=mistral:7b-instruct
+
+# AI Layer Configuration
+AI_TEMPERATURE=0.1
+AI_MAX_TOKENS=2048
+AI_TOP_P=0.9
+AI_TOP_K=40
+
+# Security Configuration
+JWT_SECRET=your-jwt-secret-here
+ENCRYPTION_KEY=your-encryption-key-here
+
+# Database Configuration (for future use)
+DATABASE_URL=postgresql://user:password@localhost:5432/playwright_ai
+REDIS_URL=redis://localhost:6379
+
+# Logging Configuration
+LOG_LEVEL=info
+LOG_FILE_PATH=./logs/app.log
+
+# Rate Limiting
+RATE_LIMIT_REQUESTS_PER_HOUR=1000
+RATE_LIMIT_TOKENS_PER_HOUR=100000
+
+# Compliance Configuration
+GDPR_ENABLED=true
+DATA_RETENTION_DAYS=90
+AUDIT_LOGGING_ENABLED=true
+
+# Performance Configuration
+MAX_CONCURRENT_TESTS=10
+MAX_STORAGE_GB=10
+
+# Test Configuration
+BASE_URL=https://www.saucedemo.com
+HEADLESS=true
+SLOW_MO=1000
+
+# Reporting Configuration
+REPORT_DIR=./test-results
+SCREENSHOT_DIR=./screenshots
+VIDEO_DIR=./videos 

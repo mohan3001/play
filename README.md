@@ -8,6 +8,11 @@ A comprehensive, enterprise-grade framework that combines Playwright with AI cap
 - The system will use your linked repo for all test management and execution.
 - See SETUP.md for environment and configuration details.
 
+## Running Tests
+
+- After linking your Playwright repo (local or remote), run tests using the scripts and instructions in your linked repo.
+- All test management and execution is now performed in your linked Playwright repo, not in a subfolder.
+
 ## 🚀 Features
 
 ### Core Automation

@@ -14,8 +14,12 @@ import {
   CheckCircle,
   XCircle
 } from "lucide-react"
+import NoRepoLinked from '@/components/layout/NoRepoLinked'
 
 export default function TestsPage() {
+  const repoLinked = false; // TODO: Replace with real logic
+  if (!repoLinked) return <NoRepoLinked />;
+
   const testStats = [
     { label: 'Total Files', value: '14', icon: FileText, color: 'text-blue-600' },
     { label: 'Feature Files', value: '3', icon: FileText, color: 'text-green-600' },

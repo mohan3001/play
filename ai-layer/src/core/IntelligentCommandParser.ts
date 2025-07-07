@@ -226,7 +226,7 @@ export class IntelligentCommandParser {
     }
 
     private buildIntentAnalysisPrompt(message: string): string {
-        return `You are an intelligent command parser for a Playwright automation framework. Analyze the user's message and determine their intent.
+        return `You are an intelligent command parser for a linked Playwright repo. Analyze the user's message and determine their intent.
 
 Available commands:
 1. count_tests - Count and analyze test files

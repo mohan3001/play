@@ -14,18 +14,6 @@ function checkDirectoryStructure() {
     console.log('📁 Checking directory structure...');
     
     const requiredDirs = [
-        'automation',
-        'automation/src',
-        'automation/src/pages',
-        'automation/src/pages/auth',
-        'automation/src/pages/shop',
-        'automation/src/utils',
-        'automation/src/config',
-        'automation/tests',
-        'automation/tests/features',
-        'automation/tests/steps',
-        'automation/tests/support',
-        'automation/data',
         'ai-layer',
         'ai-layer/src',
         'ai-layer/src/core',
@@ -50,28 +38,6 @@ function checkRequiredFiles() {
     
     const requiredFiles = [
         'package.json',
-        'automation/package.json',
-        'automation/playwright.config.ts',
-        'automation/tsconfig.json',
-        'automation/cucumber.js',
-        'automation/src/pages/base/BasePage.ts',
-        'automation/src/pages/locators.ts',
-        'automation/src/pages/auth/LoginPage.ts',
-        'automation/src/pages/shop/InventoryPage.ts',
-        'automation/src/pages/shop/CartPage.ts',
-        'automation/src/pages/shop/CheckoutPage.ts',
-        'automation/src/pages/shop/CheckoutOverviewPage.ts',
-        'automation/src/pages/shop/CheckoutCompletePage.ts',
-        'automation/src/utils/TestDataManager.ts',
-        'automation/src/utils/ElementHelper.ts',
-        'automation/tests/login.spec.ts',
-        'automation/tests/inventory.spec.ts',
-        'automation/tests/checkout.spec.ts',
-        'automation/tests/features/login.feature',
-        'automation/tests/steps/loginSteps.ts',
-        'automation/tests/support/world.ts',
-        'automation/tests/support/hooks.ts',
-        'automation/data/test-data.json',
         'ai-layer/package.json',
         'ai-layer/tsconfig.json',
         'ai-layer/src/index.ts',
@@ -105,20 +71,11 @@ function checkDependencies() {
     
     try {
         const rootPkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-        const autoPkg = JSON.parse(fs.readFileSync('automation/package.json', 'utf8'));
         const aiPkg = JSON.parse(fs.readFileSync('ai-layer/package.json', 'utf8'));
         
         // Check root dependencies
         if (!rootPkg.dependencies) {
             warnings.push('⚠️ Root package.json missing dependencies');
-        }
-        
-        // Check automation dependencies
-        if (!autoPkg.devDependencies['@playwright/test']) {
-            issues.push('❌ Missing @playwright/test in automation dependencies');
-        }
-        if (!autoPkg.devDependencies['@cucumber/cucumber']) {
-            issues.push('❌ Missing @cucumber/cucumber in automation dependencies');
         }
         
         // Check AI layer dependencies
@@ -139,15 +96,6 @@ function checkDependencies() {
 // Check TypeScript compilation
 function checkTypeScript() {
     console.log('\n🔧 Checking TypeScript compilation...');
-    
-    try {
-        // Check automation layer
-        console.log('Checking automation layer...');
-        execSync('cd automation && npx tsc --noEmit', { stdio: 'pipe' });
-        console.log('✅ Automation TypeScript compilation OK');
-    } catch (error) {
-        issues.push(`❌ Automation TypeScript compilation failed: ${error.message}`);
-    }
     
     try {
         // Check AI layer
@@ -260,11 +208,11 @@ function main() {
         }
         
         console.log('\n🔧 NEXT STEPS:');
-        console.log('1. Install dependencies: npm install && cd automation && npm install && cd ../ai-layer && npm install');
+        console.log('1. Install dependencies: npm install && cd ../ai-layer && npm install');
         console.log('2. Install Ollama: https://ollama.ai');
         console.log('3. Start Ollama: ollama serve');
         console.log('4. Pull model: ollama pull mistral:7b-instruct');
-        console.log('5. Run tests: cd automation && npm test');
+        console.log('5. Run tests: cd ../ai-layer && npm test');
     }
     
     console.log('\n📚 DOCUMENTATION:');

@@ -225,4 +225,6 @@ If you encounter issues:
 2. Link your local or remote Playwright repo using the Git Integration UI or API.
 3. Install dependencies in each package (ai-layer, api-gateway, web-dashboard).
 4. Configure your .env file as per env.example.
-5. Start the required services (see README.md for details). 
+5. Start the required services (see README.md for details).
+
+**Note:** All test management and execution is now performed in your linked Playwright repo, not in a subfolder. 

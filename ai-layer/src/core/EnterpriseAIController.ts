@@ -387,7 +387,6 @@ Generate the code:
         
         return new Promise((resolve, reject) => {
             const testProcess = spawn('npx', ['playwright', 'test', testPath], {
-                cwd: path.join(process.cwd(), 'automation'),
                 stdio: ['pipe', 'pipe', 'pipe']
             });
             

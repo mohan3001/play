@@ -1,9 +1,35 @@
+"use client";
 import { ChatInterface } from "@/components/chat/chat-interface"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Bot, Sparkles, FileText, Play, GitBranch, TrendingUp } from "lucide-react"
+import NoRepoLinked from '@/components/layout/NoRepoLinked'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 export default function ChatPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [repoSummary, setRepoSummary] = useState('')
+
+  const repoLinked = searchParams.get('repoLinked')
+
+  useEffect(() => {
+    if (repoLinked) {
+      fetch('/api/git/info')
+        .then(res => res.json())
+        .then(data => {
+          if (data.repo) {
+            setRepoSummary(
+              `Repository linked: ${data.repo.path} (${data.repo.type}). Status: ${data.repo.status}.`
+            )
+          }
+        })
+    }
+  }, [repoLinked])
+
+  if (!repoLinked) return <NoRepoLinked cta={true} />;
+
   const features = [
     {
       icon: Sparkles,
@@ -37,6 +63,11 @@ export default function ChatPage() {
 
   return (
     <div className="flex-1 space-y-6 p-6">
+      {repoSummary && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
+          {repoSummary}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">AI Chat Assistant</h1>

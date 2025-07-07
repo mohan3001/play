@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import path from 'path'
 import fs from 'fs'
+import { getLinkedRepoPathForUser } from '../utils/repoUtils'
 
 const router = Router()
 
@@ -149,35 +150,28 @@ function calculateCoverage(testFiles: any[]) {
 // Get analytics data
 router.get('/data', async (req, res) => {
   try {
-    const { timeRange: _timeRange = '30d' } = req.query
-    
-    // Get real analytics data from test execution history
-    const automationPath = path.join(process.cwd(), '..', 'automation')
-    const analyticsData = await getRealAnalyticsData(automationPath)
-    
-    res.json({
-      success: true,
-      data: analyticsData
-    })
+    const userId = req.user?.id // or however you get the user ID
+    const repoPath = await getLinkedRepoPathForUser(userId)
+    if (!repoPath) {
+      return res.status(400).json({ success: false, error: { message: 'No Playwright repo linked. Please link a repo first.' } })
+    }
+    const analyticsData = await getRealAnalyticsData(repoPath)
+    res.json({ success: true, data: analyticsData })
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: {
-        message: 'Failed to get analytics data',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }
-    })
+    res.status(500).json({ success: false, error: { message: 'Failed to get analytics data', details: error instanceof Error ? error.message : 'Unknown error' } })
   }
 })
 
 // Get test reports
-router.get('/reports', async (_req, res) => {
+router.get('/reports', async (req, res) => {
   try {
-    const automationPath = path.join(process.cwd(), '..', 'automation')
-    const reportsPath = path.join(automationPath, 'playwright-report')
-    
+    const userId = req.user?.id // or however you get the user ID
+    const repoPath = await getLinkedRepoPathForUser(userId)
+    if (!repoPath) {
+      return res.status(400).json({ success: false, error: { message: 'No Playwright repo linked. Please link a repo first.' } })
+    }
+    const reportsPath = path.join(repoPath, 'playwright-report')
     let reports: any[] = []
-    
     if (fs.existsSync(reportsPath)) {
       const reportFiles = await fs.promises.readdir(reportsPath)
       reports = reportFiles
@@ -189,19 +183,9 @@ router.get('/reports', async (_req, res) => {
           size: fs.statSync(path.join(reportsPath, file)).size
         }))
     }
-    
-    res.json({
-      success: true,
-      data: reports
-    })
+    res.json({ success: true, data: reports })
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: {
-        message: 'Failed to get test reports',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }
-    })
+    res.status(500).json({ success: false, error: { message: 'Failed to get reports', details: error instanceof Error ? error.message : 'Unknown error' } })
   }
 })
 

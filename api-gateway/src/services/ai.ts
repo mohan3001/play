@@ -120,11 +120,9 @@ export class AIService {
         return data.workingDirectory
       }
     } catch (error) {
-      console.warn('Failed to get linked repo, using default automation directory')
+      console.warn('Failed to get linked repo')
     }
-    
-    // Fallback to default automation directory
-    return path.join(__dirname, '../../../automation')
+    throw new Error('No Playwright repo linked. Please link a repo first.')
   }
 
   public getConnectionStatus(): boolean {

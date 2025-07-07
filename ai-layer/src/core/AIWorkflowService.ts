@@ -1,6 +1,6 @@
-import { GitAutomationService } from './GitAutomationService';
+import { GitAutomationService, extractRepoMetadata } from './GitAutomationService';
 import { OllamaClient } from '../integrations/OllamaClient';
-import { LLMConfig } from '../types/AITypes';
+import { LLMConfig, RepoMetadata } from '../types/AITypes';
 
 export interface WorkflowRequest {
     branchName: string;
@@ -119,11 +119,10 @@ If branch name is not provided, suggest one based on the feature.`;
     /**
      * Generate code for specific file types
      */
-    async generateCodeForFile(filePath: string, featureDescription: string): Promise<string> {
+    async generateCodeForFile(filePath: string, featureDescription: string, repoPath: string): Promise<string> {
         const fileType = this.getFileType(filePath);
-        
-        const prompt = this.buildCodeGenerationPrompt(fileType, filePath, featureDescription);
-        
+        const repoMetadata: RepoMetadata = await extractRepoMetadata(repoPath);
+        const prompt = this.buildDynamicCodeGenerationPrompt(fileType, filePath, featureDescription, repoMetadata);
         try {
             const result = await this.ollamaClient.generate(prompt);
             return result.code;
@@ -248,6 +247,10 @@ export class CartPage extends BasePage {
             default:
                 return basePrompt;
         }
+    }
+
+    private buildDynamicCodeGenerationPrompt(fileType: string, filePath: string, featureDescription: string, repoMetadata: RepoMetadata): string {
+        return `You are an expert Playwright automation engineer.\n\nProject context:\n- Page Object Models: ${repoMetadata.poms.join(', ') || 'None'}\n- Utilities: ${repoMetadata.utilities.join(', ') || 'None'}\n- Base URL: ${repoMetadata.baseUrl || 'Not set'}\n- Test folders: ${repoMetadata.testFolders.join(', ') || 'None'}\n- User roles: ${repoMetadata.userRoles.join(', ') || 'None'}\n\nGenerate a ${fileType} in TypeScript for the following feature:\n${featureDescription}\n\nFile path: ${filePath}\n\nRequirements:\n- Use the listed Page Object Models and utilities where appropriate.\n- Place the file in the correct test folder.\n- Add meaningful comments and error handling.\n- Follow enterprise coding standards.\n\nGenerate only the code, no explanations.`;
     }
 
     /**
@@ -417,7 +420,7 @@ export class CartPage extends BasePage {
             
             for (const filePath of workflowRequest.filesToGenerate) {
                 console.log(`  Generating: ${filePath}`);
-                const code = await this.generateCodeForFile(filePath, workflowRequest.featureDescription);
+                const code = await this.generateCodeForFile(filePath, workflowRequest.featureDescription, '');
                 const saveResult = await this.gitService.generateAndSaveCode(filePath, code);
                 
                 if (saveResult.success) {
