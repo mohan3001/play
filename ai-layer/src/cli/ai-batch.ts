@@ -65,63 +65,204 @@ async function executeCommand(parsedCommand: any, input: string, workingDirector
   const workflowService = new AIWorkflowService(config);
   const gitService = new GitAutomationService();
 
+  // Detect high-level or detailed summary/analysis requests
+  const lowerInput = input.toLowerCase();
+  if (
+    lowerInput.includes('high-level overview') ||
+    lowerInput.includes('high level overview') ||
+    lowerInput.includes('main structure') ||
+    lowerInput.includes('purpose of this repository') ||
+    lowerInput.includes('summarize the key components') ||
+    lowerInput.includes('framework analysis') ||
+    lowerInput.includes('repo summary')
+  ) {
+    const analysis = await analyzeTestStructure(workingDirectory);
+    const response = `🔍 Framework Analysis:
+📁 Repository: ${path.basename(workingDirectory)}
+📍 Path: ${workingDirectory}
+
+📏 Framework Details:
+• Primary Framework: ${analysis.primaryFramework}
+• Test Structure: ${analysis.testStructure}
+• Configuration Files: ${analysis.configFiles.join(', ') || 'None found'}
+• Package Manager: ${analysis.packageManager}
+
+📊 Test Statistics:
+• Total Test Files: ${analysis.totalTests}
+• Playwright Tests: ${analysis.playwrightTests.length}
+• Cucumber Features: ${analysis.cucumberFeatures.length}
+• Jest Tests: ${analysis.jestTests.length}
+• Other Tests: ${analysis.otherTests.length}
+
+📁 Directory Structure:
+• Test Directories: ${analysis.testDirectories.length > 0 ? analysis.testDirectories.join(', ') : 'None found'}
+• Page Objects: ${analysis.pageObjects.length > 0 ? 'Found' : 'Not found'}
+• Utilities: ${analysis.utilities.length > 0 ? 'Found' : 'Not found'}`;
+    
+    console.log(response);
+    
+    // Add intelligent suggestions
+    const suggestions = getNextQuestions(input, response, analysis);
+    console.log('\n💡 Suggested next questions:');
+    suggestions.forEach((suggestion, index) => {
+      console.log(`   ${index + 1}. ${suggestion}`);
+    });
+    return;
+  }
+
+  if (
+    lowerInput.includes('explain the main modules') ||
+    lowerInput.includes('responsibilities in detail') ||
+    lowerInput.includes('list and describe all the important files') ||
+    lowerInput.includes('analyze the architecture') ||
+    lowerInput.includes('test strategies used here')
+  ) {
+    const analysis = await analyzeTestStructure(workingDirectory);
+    let response = `🔎 Detailed Module & File Analysis:
+📁 Repository: ${path.basename(workingDirectory)}
+📍 Path: ${workingDirectory}
+
+📂 Important Files & Folders:`;
+    
+    const importantFiles = [
+      ...analysis.configFiles,
+      ...analysis.pageObjects,
+      ...analysis.utilities,
+      ...analysis.playwrightTests,
+      ...analysis.cucumberFeatures,
+      ...analysis.jestTests
+    ];
+    
+    if (importantFiles.length === 0) {
+      response += '\nNo important files detected.';
+    } else {
+      for (const file of importantFiles) {
+        const absPath = path.join(workingDirectory, file);
+        if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
+          const content = fs.readFileSync(absPath, 'utf8');
+          const summary = summarizeFileContent(content, file);
+          response += `\n\n• ${file}:\n${summary}`;
+        } else {
+          response += `\n\n• ${file}`;
+        }
+      }
+    }
+    
+    console.log(response);
+    
+    // Add intelligent suggestions
+    const suggestions = getNextQuestions(input, response, analysis);
+    console.log('\n💡 Suggested next questions:');
+    suggestions.forEach((suggestion, index) => {
+      console.log(`   ${index + 1}. ${suggestion}`);
+    });
+    return;
+  }
+
+  // On-demand file/folder summarization
+  const fileMatch = input.match(/summarize (the )?(contents of )?([\w\/-_.]+\.[\w]+|[\w\/-_]+)/i);
+  if (fileMatch) {
+    const target = fileMatch[3];
+    const absPath = path.join(workingDirectory, target);
+    if (fs.existsSync(absPath)) {
+      if (fs.statSync(absPath).isFile()) {
+        const content = fs.readFileSync(absPath, 'utf8');
+        const summary = summarizeFileContent(content, target);
+        console.log(`📄 Summary of ${target}:\n${summary}`);
+      } else if (fs.statSync(absPath).isDirectory()) {
+        const files = fs.readdirSync(absPath);
+        console.log(`📁 Folder: ${target}`);
+        for (const file of files) {
+          const filePath = path.join(absPath, file);
+          if (fs.statSync(filePath).isFile()) {
+            const content = fs.readFileSync(filePath, 'utf8');
+            const summary = summarizeFileContent(content, file);
+            console.log(`\n• ${file}:\n${summary}`);
+          } else {
+            console.log(`\n• ${file}/`);
+          }
+        }
+      } else {
+        console.log('Target is not a file or directory.');
+      }
+    } else {
+      console.log(`❌ File or folder not found: ${target}`);
+    }
+    return;
+  }
+
   switch (parsedCommand.command) {
     case 'count_tests': {
       const testAnalysis = await analyzeTestStructure(workingDirectory);
-      console.log('📊 Test Analysis:');
-      console.log(`📁 Repository: ${path.basename(workingDirectory)}`);
-      console.log(`📍 Path: ${workingDirectory}`);
-      console.log('');
-      console.log('🧪 Test Files Found:');
-      console.log(`   • Playwright Tests: ${testAnalysis.playwrightTests.length}`);
-      console.log(`   • Cucumber Features: ${testAnalysis.cucumberFeatures.length}`);
-      console.log(`   • Jest Tests: ${testAnalysis.jestTests.length}`);
-      console.log(`   • Other Test Files: ${testAnalysis.otherTests.length}`);
-      console.log(`   • Total Test Files: ${testAnalysis.totalTests}`);
-      console.log('');
+      let response = `📊 Test Analysis:
+📁 Repository: ${path.basename(workingDirectory)}
+📍 Path: ${workingDirectory}
+
+🧪 Test Files Found:
+   • Playwright Tests: ${testAnalysis.playwrightTests.length}
+   • Cucumber Features: ${testAnalysis.cucumberFeatures.length}
+   • Jest Tests: ${testAnalysis.jestTests.length}
+   • Other Test Files: ${testAnalysis.otherTests.length}
+   • Total Test Files: ${testAnalysis.totalTests}`;
       
       if (testAnalysis.playwrightTests.length > 0) {
-        console.log('📄 Playwright Test Files:');
-        testAnalysis.playwrightTests.forEach(file => console.log(`   • ${file}`));
-        console.log('');
+        response += '\n\n📄 Playwright Test Files:';
+        testAnalysis.playwrightTests.forEach(file => response += `\n   • ${file}`);
       }
       
       if (testAnalysis.cucumberFeatures.length > 0) {
-        console.log('🥒 Cucumber Feature Files:');
-        testAnalysis.cucumberFeatures.forEach(file => console.log(`   • ${file}`));
-        console.log('');
+        response += '\n\n🥒 Cucumber Feature Files:';
+        testAnalysis.cucumberFeatures.forEach(file => response += `\n   • ${file}`);
       }
       
-      console.log('📈 Summary:');
-      console.log(`   • Framework: ${testAnalysis.primaryFramework}`);
-      console.log(`   • Test Structure: ${testAnalysis.testStructure}`);
-      console.log(`   • Configuration: ${testAnalysis.hasConfig ? 'Found' : 'Not found'}`);
+      response += `\n\n📈 Summary:
+   • Framework: ${testAnalysis.primaryFramework}
+   • Test Structure: ${testAnalysis.testStructure}
+   • Configuration: ${testAnalysis.hasConfig ? 'Found' : 'Not found'}`;
+      
+      console.log(response);
+      
+      // Add intelligent suggestions
+      const suggestions = getNextQuestions(input, response, testAnalysis);
+      console.log('\n💡 Suggested next questions:');
+      suggestions.forEach((suggestion, index) => {
+        console.log(`   ${index + 1}. ${suggestion}`);
+      });
       break;
     }
     
     case 'analyze_framework': {
       const analysis = await analyzeTestStructure(workingDirectory);
-      console.log('🔍 Framework Analysis:');
-      console.log(`📁 Repository: ${path.basename(workingDirectory)}`);
-      console.log(`📍 Path: ${workingDirectory}`);
-      console.log('');
-      console.log('🏗️  Framework Details:');
-      console.log(`   • Primary Framework: ${analysis.primaryFramework}`);
-      console.log(`   • Test Structure: ${analysis.testStructure}`);
-      console.log(`   • Configuration Files: ${analysis.configFiles.join(', ') || 'None found'}`);
-      console.log(`   • Package Manager: ${analysis.packageManager}`);
-      console.log('');
-      console.log('📊 Test Statistics:');
-      console.log(`   • Total Test Files: ${analysis.totalTests}`);
-      console.log(`   • Playwright Tests: ${analysis.playwrightTests.length}`);
-      console.log(`   • Cucumber Features: ${analysis.cucumberFeatures.length}`);
-      console.log(`   • Jest Tests: ${analysis.jestTests.length}`);
-      console.log(`   • Other Tests: ${analysis.otherTests.length}`);
-      console.log('');
-      console.log('📁 Directory Structure:');
-      console.log(`   • Test Directories: ${analysis.testDirectories.join(', ') || 'None found'}`);
-      console.log(`   • Page Objects: ${analysis.pageObjects.length > 0 ? 'Found' : 'Not found'}`);
-      console.log(`   • Utilities: ${analysis.utilities.length > 0 ? 'Found' : 'Not found'}`);
+      const response = `🔍 Framework Analysis:
+📁 Repository: ${path.basename(workingDirectory)}
+📍 Path: ${workingDirectory}
+
+🏗️  Framework Details:
+   • Primary Framework: ${analysis.primaryFramework}
+   • Test Structure: ${analysis.testStructure}
+   • Configuration Files: ${analysis.configFiles.join(', ') || 'None found'}
+   • Package Manager: ${analysis.packageManager}
+
+📊 Test Statistics:
+   • Total Test Files: ${analysis.totalTests}
+   • Playwright Tests: ${analysis.playwrightTests.length}
+   • Cucumber Features: ${analysis.cucumberFeatures.length}
+   • Jest Tests: ${analysis.jestTests.length}
+   • Other Tests: ${analysis.otherTests.length}
+
+📁 Directory Structure:
+   • Test Directories: ${analysis.testDirectories.join(', ') || 'None found'}
+   • Page Objects: ${analysis.pageObjects.length > 0 ? 'Found' : 'Not found'}
+   • Utilities: ${analysis.utilities.length > 0 ? 'Found' : 'Not found'}`;
+      
+      console.log(response);
+      
+      // Add intelligent suggestions
+      const suggestions = getNextQuestions(input, response, analysis);
+      console.log('\n💡 Suggested next questions:');
+      suggestions.forEach((suggestion, index) => {
+        console.log(`   ${index + 1}. ${suggestion}`);
+      });
       break;
     }
 
@@ -363,6 +504,119 @@ async function executeCommand(parsedCommand: any, input: string, workingDirector
         console.log('💡 Try: count tests, analyze framework, run all tests, list all tests, etc.');
       }
   }
+}
+
+// Simple file content summarizer (can be replaced with LLM call for more detail)
+function summarizeFileContent(content: string, fileName: string): string {
+  if (fileName.endsWith('.md')) {
+    // Return first few lines of markdown
+    return content.split('\n').slice(0, 10).join('\n');
+  }
+  if (fileName.endsWith('.ts') || fileName.endsWith('.js')) {
+    // Return first few lines and any exported functions/classes
+    const lines = content.split('\n').slice(0, 10).join('\n');
+    const exports = content.match(/export (function|class|const|let|var) (\w+)/g);
+    return (lines + (exports ? '\nExports: ' + exports.join(', ') : ''));
+  }
+  // For other files, just return first few lines
+  return content.split('\n').slice(0, 10).join('\n');
+}
+
+// Intelligent follow-up suggestions based on user input and context
+function getNextQuestions(userInput: string, aiResponse: string, metadata: any): string[] {
+  const lower = userInput.toLowerCase();
+  const responseLower = aiResponse.toLowerCase();
+  
+  // High-level overview and summary requests
+  if (
+    lower.includes('overview') || 
+    lower.includes('summary') || 
+    lower.includes('main structure') || 
+    lower.includes('purpose of this repository') ||
+    lower.includes('summarize the key components')
+  ) {
+    return [
+      "Explain the main modules and their responsibilities in detail",
+      "List and describe all the important files and their roles",
+      "Show me the dependencies from package.json",
+      "What are the main test strategies used here?",
+      "Analyze the architecture and workflow of this repo"
+    ];
+  }
+  
+  // Test-related requests
+  if (
+    lower.includes('test') || 
+    lower.includes('spec') || 
+    lower.includes('e2e') ||
+    responseLower.includes('test')
+  ) {
+    return [
+      "List all test files and their purposes",
+      "Show me flaky or failing tests",
+      "Explain the test data management approach",
+      "What are the main test utilities and helpers?",
+      "Analyze test coverage and patterns"
+    ];
+  }
+  
+  // File and folder analysis requests
+  if (
+    lower.includes('file') || 
+    lower.includes('folder') || 
+    lower.includes('module') ||
+    lower.includes('structure') ||
+    lower.includes('directory')
+  ) {
+    return [
+      "Summarize the contents of README.md",
+      "Show me the main configuration files",
+      "List all utility functions and their purposes",
+      "What are the main page objects and locators?",
+      "Explain the project's build and deployment setup"
+    ];
+  }
+  
+  // Configuration and setup requests
+  if (
+    lower.includes('config') || 
+    lower.includes('setup') || 
+    lower.includes('dependencies') ||
+    lower.includes('package.json')
+  ) {
+    return [
+      "Show me the Playwright configuration",
+      "List all development dependencies",
+      "Explain the project's scripts and commands",
+      "What are the main environment variables used?",
+      "Show me the CI/CD configuration"
+    ];
+  }
+  
+  // Code analysis and architecture requests
+  if (
+    lower.includes('architecture') || 
+    lower.includes('workflow') || 
+    lower.includes('responsibilities') ||
+    lower.includes('modules')
+  ) {
+    return [
+      "Show me the main utility functions",
+      "List all page objects and their methods",
+      "Explain the test data management strategy",
+      "What are the main helper functions?",
+      "Show me the project's folder organization"
+    ];
+  }
+  
+  // Default suggestions for any query
+  return [
+    "Give me a high-level overview of this repo",
+    "List all test files and their purposes",
+    "Show me the main configuration files",
+    "Explain the utilities and helpers in this repo",
+    "What are the main challenges or areas for improvement?"
+  ];
 }
 
 // Dynamic test structure analysis function

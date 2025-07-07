@@ -10,7 +10,7 @@ export async function linkRepo(userId: string, repoData: any) {
 }
 
 export async function getLinkedRepo(userId: string) {
-  return prisma.linkedRepo.findUnique({ where: { userId } });
+  return prisma.linkedRepo.findFirst({ where: { userId } });
 }
 
 export async function unlinkRepo(userId: string) {

@@ -1,230 +1,171 @@
-# 🚀 Playwright AI Framework Setup Guide
+# Setup Guide - Enterprise Playwright AI Platform
 
-## 📋 Prerequisites
+## Prerequisites
 
-### System Requirements
-- **OS**: macOS (Apple Silicon M1/M2/M4 recommended)
-- **Node.js**: v18+ 
-- **npm**: v9+
-- **Ollama**: Latest version
-- **Memory**: 8GB+ RAM (16GB+ recommended for AI operations)
+- **Node.js 18+** - [Download](https://nodejs.org/)
+- **Docker** - [Download](https://www.docker.com/products/docker-desktop/)
+- **Git** - [Download](https://git-scm.com/)
 
-### Required Software
-1. **Node.js & npm**: https://nodejs.org/
-2. **Ollama**: https://ollama.ai/
-3. **Git**: https://git-scm.com/
-
-## 🔧 Installation Steps
+## Quick Setup
 
 ### 1. Install Dependencies
-
 ```bash
-# Install root dependencies
-npm install
-
-# Install automation layer dependencies
-cd automation
-npm install
-
-# Install AI layer dependencies
-cd ../ai-layer
-npm install
-
-# Return to root
-cd ..
+# Install all dependencies for the monorepo
+npm run setup
 ```
 
-### 2. Setup Ollama
-
+### 2. Start Development Environment
 ```bash
-# Install Ollama (if not already installed)
-# Download from https://ollama.ai/
-
-# Start Ollama service
-ollama serve
-
-# In a new terminal, pull the required model
-ollama pull mistral:7b-instruct
-
-# Verify installation
-ollama list
+# Start all services (ChromaDB + API + Web Dashboard)
+npm run dev
 ```
 
-### 3. Environment Configuration
+This single command will:
+- Start ChromaDB container (port 8000)
+- Wait for ChromaDB to be ready
+- Start API Gateway (port 3001)
+- Start Web Dashboard (port 3000)
 
+## Manual Setup (Alternative)
+
+If you prefer to start services individually:
+
+### 1. Start ChromaDB
 ```bash
-# Copy environment template
-cp env.example .env
+# Start ChromaDB container
+npm run chromadb:start
 
-# Edit .env file with your settings
-# Key settings to configure:
-# - OLLAMA_BASE_URL=http://localhost:11434
-# - OLLAMA_MODEL=mistral:7b-instruct
-# - BASE_URL=https://www.saucedemo.com
+# Verify ChromaDB is running
+curl http://localhost:8000/api/v1/heartbeat
 ```
 
-### 4. Install Playwright Browsers
-
+### 2. Start API Gateway
 ```bash
-cd automation
-npx playwright install
+# Start the backend API
+npm run api:dev
 ```
 
-## 🧪 Testing the Setup
-
-### 1. Validate Framework
-
+### 3. Start Web Dashboard
 ```bash
-coucd # Run the validation script
-node validate-framework.js
+# Start the frontend
+npm run web:dev
 ```
 
-### 2. Run Basic Tests
+## Environment Configuration
 
-```bash
-# Run Playwright tests
-cd automation
-npm test
-
-# Run with UI
-npm run test:ui
-
-# Run in headed mode
-npm run test:headed
+### API Gateway (.env)
+Create `api-gateway/.env`:
+```env
+PORT=3001
+WEB_DASHBOARD_URL=http://localhost:3000
+CHROMA_URL=http://localhost:8000
+DATABASE_URL="postgresql://username:password@localhost:5432/playwright_ai"
 ```
 
-### 3. Test AI Integration
-
-```bash
-# Test AI code generation
-cd ai-layer
-npm run generate test "login with valid credentials"
-
-# Test AI chat
-npm run chat
+### Web Dashboard (.env.local)
+Create `web-dashboard/.env.local`:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
-### 4. Test Cucumber BDD
+## Services Overview
 
+| Service | Port | Purpose |
+|---------|------|---------|
+| **ChromaDB** | 8000 | Vector database for chat memory |
+| **API Gateway** | 3001 | Backend services & AI processing |
+| **Web Dashboard** | 3000 | Frontend interface |
+
+## ChromaDB Integration
+
+ChromaDB provides:
+- **Chat Memory**: Persistent conversation history
+- **Semantic Search**: Context-aware chat responses
+- **Vector Storage**: Efficient similarity search
+
+### ChromaDB Management
 ```bash
-# Run Cucumber tests
-cd automation
-npm run cucumber
+# Start ChromaDB
+npm run chromadb:start
 
-# Run with headed mode
-npm run cucumber:headed
+# Stop ChromaDB
+npm run chromadb:stop
+
+# Check status
+curl http://localhost:8000/api/v1/heartbeat
 ```
 
-## 🔍 Troubleshooting
+## Development Workflow
 
-### Common Issues
-
-#### 1. TypeScript Compilation Errors
+### 1. Start Development
 ```bash
-# Clean and rebuild
-cd automation && npm run build
-cd ../ai-layer && npm run build
+npm run dev
 ```
 
-#### 2. Ollama Connection Issues
-```bash
-# Check if Ollama is running
-ollama list
+### 2. Access Services
+- **Web Dashboard**: http://localhost:3000
+- **API Gateway**: http://localhost:3001
+- **ChromaDB**: http://localhost:8000
 
-# Restart Ollama service
-pkill ollama
-ollama serve
+### 3. Link Repository
+1. Open http://localhost:3000
+2. Go to "Git Integration" page
+3. Link your local or remote Playwright repository
+
+### 4. Start Chatting
+1. Navigate to "AI Chat" page
+2. Ask questions about your tests
+3. Use commands like "count tests" or "analyze framework"
+
+## Troubleshooting
+
+### ChromaDB Connection Issues
+```bash
+# Check if ChromaDB is running
+docker ps | grep chromadb
+
+# Restart ChromaDB
+npm run chromadb:stop
+npm run chromadb:start
+
+# Check logs
+docker logs chromadb
 ```
 
-#### 3. Missing Dependencies
+### Port Conflicts
+If ports are already in use:
 ```bash
-# Reinstall all dependencies
-rm -rf node_modules package-lock.json
-npm install
+# Find processes using ports
+lsof -i :8000  # ChromaDB
+lsof -i :3001  # API Gateway
+lsof -i :3000  # Web Dashboard
+
+# Kill processes if needed
+kill -9 <PID>
 ```
 
-#### 4. Playwright Browser Issues
+### Docker Issues
 ```bash
-# Reinstall browsers
-cd automation
-npx playwright install --force
+# Ensure Docker is running
+docker --version
+
+# Check Docker daemon
+docker info
+
+# Restart Docker Desktop if needed
 ```
 
-### Performance Optimization
+## Production Setup
 
-#### For Apple Silicon Macs
-```bash
-# Use native ARM64 builds
-export OLLAMA_HOST=0.0.0.0
-export OLLAMA_ORIGINS=*
+For production deployment:
 
-# Optimize for M-series chips
-ollama pull mistral:7b-instruct-q4_K_M
-```
+1. **Database**: Use managed PostgreSQL service
+2. **ChromaDB**: Use managed vector database or self-hosted
+3. **Environment**: Set production environment variables
+4. **Security**: Configure proper authentication and authorization
 
-#### Memory Management
-```bash
-# Monitor memory usage
-top -pid $(pgrep ollama)
+## Support
 
-# Restart Ollama if memory usage is high
-pkill ollama && ollama serve
-```
-
-## 📊 Verification Checklist
-
-- [ ] Node.js v18+ installed
-- [ ] npm v9+ installed
-- [ ] Ollama installed and running
-- [ ] mistral:7b-instruct model pulled
-- [ ] All dependencies installed
-- [ ] Environment file configured
-- [ ] Playwright browsers installed
-- [ ] Validation script passes
-- [ ] Basic tests run successfully
-- [ ] AI integration works
-- [ ] Cucumber tests run
-
-## 🎯 Next Steps
-
-1. **Explore the Framework**:
-   - Read `README.md` for detailed documentation
-   - Check `automation/tests/` for example tests
-   - Review `ai-layer/src/` for AI integration
-
-2. **Start Developing**:
-   - Create new tests in `automation/tests/`
-   - Add page objects in `automation/src/pages/`
-   - Use AI to generate tests: `npm run generate`
-
-3. **Customize Configuration**:
-   - Modify `automation/playwright.config.ts`
-   - Update `ai-layer/src/config/llm-config.ts`
-   - Configure environment variables in `.env`
-
-## 🆘 Support
-
-If you encounter issues:
-
-1. Check the troubleshooting section above
-2. Review error logs in console output
-3. Verify all prerequisites are met
-4. Run validation script: `node validate-framework.js`
-5. Check GitHub issues or create new ones
-
-## 📚 Additional Resources
-
-- [Playwright Documentation](https://playwright.dev/)
-- [Ollama Documentation](https://ollama.ai/docs)
-- [Cucumber Documentation](https://cucumber.io/docs)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-
-# Setup Instructions
-
-1. Clone this repository.
-2. Link your local or remote Playwright repo using the Git Integration UI or API.
-3. Install dependencies in each package (ai-layer, api-gateway, web-dashboard).
-4. Configure your .env file as per env.example.
-5. Start the required services (see README.md for details).
-
-**Note:** All test management and execution is now performed in your linked Playwright repo, not in a subfolder. 
+- **Documentation**: Check README.md for detailed feature information
+- **Issues**: Report bugs via GitHub Issues
+- **Discussions**: Join GitHub Discussions for questions 

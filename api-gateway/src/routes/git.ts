@@ -2,16 +2,16 @@ import express from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { linkRepo, unlinkRepo, getLinkedRepo, getLinkedRepoPathForUser } from '../utils/repoUtils';
+const os = require('os');
 
 const router = express.Router();
 
-// Simple in-memory storage (in production, use a database)
-let linkedRepo: {
-  path: string;
-  type: 'local' | 'remote';
-  accessToken?: string;
-  lastSync: string;
-} | null = null;
+// Helper to get userId from request, fallback to a default for dev
+function getUserId(req: any): string {
+  // In production, req.user should be set by authentication middleware
+  return req.user?.id || 'default-user';
+}
 
 // Helper function to validate Playwright repo
 function validatePlaywrightRepo(repoPath: string): boolean {
@@ -24,41 +24,49 @@ function validatePlaywrightRepo(repoPath: string): boolean {
   }
 }
 
-// Simple token encoding (in production, use proper encryption)
-function encodeToken(token: string): string {
-  return Buffer.from(token).toString('base64');
-}
-
-function decodeToken(encodedToken: string): string {
-  return Buffer.from(encodedToken, 'base64').toString('utf8');
-}
-
 // Get repository info
-router.get('/info', (req, res) => {
-  if (!linkedRepo) {
+router.get('/info', async (req, res) => {
+  const userId = getUserId(req);
+  const repo = await getLinkedRepo(userId);
+  if (!repo) {
     return res.json({ repo: null });
   }
-
-  // Check if repo is still accessible
   let status: 'connected' | 'disconnected' = 'disconnected';
+  let errorDetail = '';
   try {
-    if (linkedRepo.type === 'local') {
-      status = fs.existsSync(linkedRepo.path) && validatePlaywrightRepo(linkedRepo.path) ? 'connected' : 'disconnected';
-    } else {
-      // For remote repos, check if the cloned directory exists
-      const clonedPath = path.join(process.cwd(), 'linked-repos', path.basename(linkedRepo.path, '.git'));
-      status = fs.existsSync(clonedPath) && validatePlaywrightRepo(clonedPath) ? 'connected' : 'disconnected';
+    if (repo.repoType === 'local' && repo.localPath) {
+      if (fs.existsSync(repo.localPath)) {
+        if (validatePlaywrightRepo(repo.localPath)) {
+          status = 'connected';
+        } else {
+          errorDetail = 'Directory does not contain a valid Playwright configuration.';
+        }
+      } else {
+        errorDetail = 'Directory not found.';
+      }
+    } else if (repo.repoType === 'remote' && (repo.playwrightRoot || repo.localPath)) {
+      const remotePath = repo.playwrightRoot || repo.localPath;
+      if (remotePath && fs.existsSync(remotePath)) {
+        if (validatePlaywrightRepo(remotePath)) {
+          status = 'connected';
+        } else {
+          errorDetail = 'Cloned directory does not contain a valid Playwright configuration.';
+        }
+      } else {
+        errorDetail = 'Cloned directory not found.';
+      }
     }
-  } catch {
+  } catch (err) {
     status = 'disconnected';
+    errorDetail = err instanceof Error ? err.message : 'Unknown error';
   }
-
-  res.json({
+  return res.json({
     repo: {
-      path: linkedRepo.path,
-      type: linkedRepo.type,
+      path: repo.repoType === 'local' ? repo.localPath : repo.remoteUrl,
+      type: repo.repoType,
       status,
-      lastSync: linkedRepo.lastSync
+      lastSync: repo.updatedAt || repo.createdAt,
+      errorDetail: status === 'disconnected' ? errorDetail : undefined
     }
   });
 });
@@ -66,113 +74,107 @@ router.get('/info', (req, res) => {
 // Link repository
 router.post('/link', async (req, res) => {
   try {
-    const { path: repoPath, type, accessToken } = req.body;
-
+    const userId = getUserId(req);
+    const { path: repoPath, type, accessToken, playwrightRoot } = req.body;
     if (!repoPath) {
       return res.status(400).json({ error: 'Repository path is required' });
     }
-
-    let validatedPath = repoPath;
-
+    let localPath = repoPath;
     if (type === 'local') {
-      // Validate local path
       if (!fs.existsSync(repoPath)) {
         return res.status(400).json({ error: 'Local path does not exist' });
       }
-      
       if (!validatePlaywrightRepo(repoPath)) {
         return res.status(400).json({ error: 'Directory does not contain a valid Playwright configuration' });
       }
     } else if (type === 'remote') {
-      // Clone remote repository
       if (!accessToken) {
         return res.status(400).json({ error: 'Access token is required for remote repositories' });
       }
-
-      const reposDir = path.join(process.cwd(), 'linked-repos');
+      // Clone remote repository to a user-specific directory
+      const reposDir = path.join(os.tmpdir(), 'linked-repos', userId);
       if (!fs.existsSync(reposDir)) {
         fs.mkdirSync(reposDir, { recursive: true });
       }
-
       const repoName = path.basename(repoPath, '.git');
       const clonedPath = path.join(reposDir, repoName);
-
-      // Clone the repository
-      const gitUrl = repoPath.startsWith('https://') 
+      if (fs.existsSync(clonedPath)) {
+        // Clean up old clone
+        fs.rmSync(clonedPath, { recursive: true, force: true });
+      }
+      // Build git URL with token (never expose token in response)
+      const gitUrl = repoPath.startsWith('https://')
         ? `https://${accessToken}@${repoPath.replace('https://', '')}`
         : repoPath;
-
-      execSync(`git clone ${gitUrl} ${clonedPath}`, { stdio: 'pipe' });
-      
+      try {
+        execSync(`git clone ${gitUrl} ${clonedPath}`, { stdio: 'pipe' });
+      } catch (err) {
+        return res.status(400).json({ error: 'Failed to clone remote repository. Check URL and access token.' });
+      }
       if (!validatePlaywrightRepo(clonedPath)) {
         // Clean up if not a valid Playwright repo
         fs.rmSync(clonedPath, { recursive: true, force: true });
-        return res.status(400).json({ error: 'Repository does not contain a valid Playwright configuration' });
+        return res.status(400).json({ error: 'Cloned directory does not contain a valid Playwright configuration' });
       }
-
-      validatedPath = clonedPath;
+      localPath = clonedPath;
     }
-
-    // Store repo info
-    linkedRepo = {
-      path: validatedPath,
-      type,
-      ...(accessToken && { accessToken: encodeToken(accessToken) }),
-      lastSync: new Date().toISOString()
-    };
-
-    const repoInfo = linkedRepo;
-    res.json({ 
-      success: true, 
+    // Store repo info in DB (never expose accessToken in response)
+    await linkRepo(userId, {
+      repoType: type,
+      localPath: type === 'local' ? repoPath : localPath,
+      remoteUrl: type === 'remote' ? repoPath : undefined,
+      accessToken: accessToken ? Buffer.from(accessToken).toString('base64') : undefined,
+      playwrightRoot
+    });
+    // Fetch the updated repo to get updatedAt/createdAt
+    const repo = await getLinkedRepo(userId);
+    return res.json({
+      success: true,
       message: 'Repository linked successfully',
       repo: {
         path: repoPath,
         type,
         status: 'connected',
-        lastSync: repoInfo.lastSync
+        lastSync: repo?.updatedAt || repo?.createdAt
       }
     });
-
   } catch (error: any) {
     console.error('Error linking repository:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to link repository' 
-    });
+    return res.status(500).json({ error: error.message || 'Failed to link repository' });
   }
 });
 
 // Unlink repository
-router.post('/unlink', (req, res) => {
+router.post('/unlink', async (req, res) => {
   try {
-    const currentRepo = linkedRepo;
-    if (currentRepo && currentRepo.type === 'remote') {
-      // Clean up cloned repository
-      const clonedPath = path.join(process.cwd(), 'linked-repos', path.basename(currentRepo.path, '.git'));
-      if (fs.existsSync(clonedPath)) {
-        fs.rmSync(clonedPath, { recursive: true, force: true });
+    const userId = getUserId(req);
+    const repo = await getLinkedRepo(userId);
+    if (repo && repo.repoType === 'remote' && repo.localPath) {
+      // Clean up cloned remote repo
+      try {
+        fs.rmSync(repo.localPath, { recursive: true, force: true });
+      } catch (err) {
+        console.warn('Failed to clean up remote repo clone:', err);
       }
     }
-
-    linkedRepo = null;
-    res.json({ success: true, message: 'Repository unlinked successfully' });
-
+    await unlinkRepo(userId);
+    return res.json({ success: true, message: 'Repository unlinked successfully' });
   } catch (error: any) {
     console.error('Error unlinking repository:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to unlink repository' 
-    });
+    return res.status(500).json({ error: error.message || 'Failed to unlink repository' });
   }
 });
 
 // Get working directory for AI/CLI operations
-router.get('/working-directory', (req, res) => {
-  if (!linkedRepo) {
+router.get('/working-directory', async (req, res) => {
+  const userId = getUserId(req);
+  const repoPath = await getLinkedRepoPathForUser(userId);
+  if (!repoPath) {
     return res.status(404).json({ error: 'No repository linked' });
   }
-
-  res.json({ 
-    workingDirectory: linkedRepo.path,
-    type: linkedRepo.type
+  return res.json({
+    workingDirectory: repoPath,
+    type: 'local' // Assuming working directory is always local for now
   });
 });
 

@@ -9,7 +9,7 @@ datasource db {
 
 model LinkedRepo {
   id             Int      @id @default(autoincrement())
-  userId         String
+  userId         String   @unique
   repoType       String   // 'local' or 'remote'
   localPath      String?  // for local repos
   remoteUrl      String?  // for remote repos

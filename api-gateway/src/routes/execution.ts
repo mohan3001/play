@@ -39,7 +39,8 @@ router.get('/status/:executionId', async (req, res) => {
 router.post('/cancel/:executionId', async (req, res) => {
   try {
     const { executionId } = req.params
-    const cancelled = await testExecutionService.cancelExecution(executionId)
+    const userId = 'anonymous'; // Default userId for now
+    const cancelled = await testExecutionService.cancelExecution(userId, executionId)
     
     if (!cancelled) {
       res.status(404).json({

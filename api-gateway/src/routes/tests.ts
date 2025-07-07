@@ -24,15 +24,15 @@ const executionSchema = Joi.object({
 // Get test files
 router.get('/files', async (req, res) => {
   try {
-    const userId = req.user?.id // or however you get the user ID
+    const userId = getUserId(req)
     const repoPath = await getLinkedRepoPathForUser(userId)
     if (!repoPath) {
       return res.status(400).json({ success: false, error: { message: 'No Playwright repo linked. Please link a repo first.' } })
     }
     const testFiles = await scanTestFiles(repoPath)
-    res.json({ success: true, data: testFiles })
+    return res.json({ success: true, data: testFiles })
   } catch (error) {
-    res.status(500).json({ success: false, error: { message: 'Failed to get test files', details: error instanceof Error ? error.message : 'Unknown error' } })
+    return res.status(500).json({ success: false, error: { message: 'Failed to get test files', details: error instanceof Error ? error.message : 'Unknown error' } })
   }
 })
 
@@ -40,9 +40,10 @@ router.get('/files', async (req, res) => {
 router.post('/execute', validateRequest(executionSchema), async (req, res) => {
   try {
     const { testFile, options } = req.body
-    const executionId = await testExecutionService.startExecution(testFile, options)
+    const userId = getUserId(req);
+    const executionId = await testExecutionService.startExecution(userId, testFile, options)
     
-    res.json({
+    return res.json({
       success: true,
       data: {
         executionId,
@@ -51,7 +52,7 @@ router.post('/execute', validateRequest(executionSchema), async (req, res) => {
       }
     })
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: {
         message: 'Failed to start test execution',
@@ -68,21 +69,20 @@ router.get('/execution/:executionId', async (req, res) => {
     const status = testExecutionService.getExecutionStatus(executionId)
     
     if (!status) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: {
           message: 'Execution not found'
         }
       })
-      return
     }
     
-    res.json({
+    return res.json({
       success: true,
       data: status
     })
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: {
         message: 'Failed to get execution status',
@@ -96,19 +96,19 @@ router.get('/execution/:executionId', async (req, res) => {
 router.post('/execution/:executionId/cancel', async (req, res) => {
   try {
     const { executionId } = req.params
-    const cancelled = await testExecutionService.cancelExecution(executionId)
+    const userId = getUserId(req);
+    const cancelled = await testExecutionService.cancelExecution(userId, executionId)
     
     if (!cancelled) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         error: {
           message: 'Execution not found or cannot be cancelled'
         }
       })
-      return
     }
     
-    res.json({
+    return res.json({
       success: true,
       data: {
         executionId,
@@ -117,7 +117,7 @@ router.post('/execution/:executionId/cancel', async (req, res) => {
       }
     })
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: {
         message: 'Failed to cancel execution',
@@ -132,12 +132,12 @@ router.get('/executions', async (_req, res) => {
   try {
     const executions = testExecutionService.getAllExecutions()
     
-    res.json({
+    return res.json({
       success: true,
       data: executions
     })
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: {
         message: 'Failed to get executions',
@@ -148,12 +148,12 @@ router.get('/executions', async (_req, res) => {
 })
 
 // Get test execution service status
-router.get('/status', async (_req, res) => {
+router.get('/status', async (req, res) => {
   try {
-    const isReady = testExecutionService.getReadyStatus()
-    const healthCheck = await testExecutionService.healthCheck()
-    
-    res.json({
+    const userId = getUserId(req);
+    const isReady = testExecutionService.getReadyStatus();
+    const healthCheck = await testExecutionService.healthCheck(userId);
+    return res.json({
       success: true,
       data: {
         ready: isReady,
@@ -162,7 +162,7 @@ router.get('/status', async (_req, res) => {
       }
     })
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: {
         message: 'Failed to get test service status',
@@ -201,6 +201,12 @@ async function scanTestFiles(dir: string, repoRoot?: string): Promise<any[]> {
     console.error('Error scanning directory:', error)
   }
   return files
+}
+
+// Helper to get userId from request, fallback to a default for dev
+function getUserId(req: any): string {
+  // In production, req.user should be set by authentication middleware
+  return req.user?.id || 'default-user';
 }
 
 export { router as testRoutes } 

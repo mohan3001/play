@@ -148,24 +148,24 @@ function calculateCoverage(testFiles: any[]) {
 }
 
 // Get analytics data
-router.get('/data', async (req, res) => {
+router.get('/data', async (_req, res) => {
   try {
-    const userId = req.user?.id // or however you get the user ID
+    const userId = 'anonymous'; // Default userId for now
     const repoPath = await getLinkedRepoPathForUser(userId)
     if (!repoPath) {
       return res.status(400).json({ success: false, error: { message: 'No Playwright repo linked. Please link a repo first.' } })
     }
     const analyticsData = await getRealAnalyticsData(repoPath)
-    res.json({ success: true, data: analyticsData })
+    return res.json({ success: true, data: analyticsData })
   } catch (error) {
-    res.status(500).json({ success: false, error: { message: 'Failed to get analytics data', details: error instanceof Error ? error.message : 'Unknown error' } })
+    return res.status(500).json({ success: false, error: { message: 'Failed to get analytics data', details: error instanceof Error ? error.message : 'Unknown error' } })
   }
 })
 
 // Get test reports
-router.get('/reports', async (req, res) => {
+router.get('/reports', async (_req, res) => {
   try {
-    const userId = req.user?.id // or however you get the user ID
+    const userId = 'anonymous'; // Default userId for now
     const repoPath = await getLinkedRepoPathForUser(userId)
     if (!repoPath) {
       return res.status(400).json({ success: false, error: { message: 'No Playwright repo linked. Please link a repo first.' } })
@@ -183,9 +183,9 @@ router.get('/reports', async (req, res) => {
           size: fs.statSync(path.join(reportsPath, file)).size
         }))
     }
-    res.json({ success: true, data: reports })
+    return res.json({ success: true, data: reports })
   } catch (error) {
-    res.status(500).json({ success: false, error: { message: 'Failed to get reports', details: error instanceof Error ? error.message : 'Unknown error' } })
+    return res.status(500).json({ success: false, error: { message: 'Failed to get reports', details: error instanceof Error ? error.message : 'Unknown error' } })
   }
 })
 

@@ -2,9 +2,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export interface AIResponse {
   message: string
-  type: 'text' | 'command' | 'error'
+  type: 'text' | 'command' | 'error' | 'action'
   data?: any
   timestamp: string
+  suggestions?: string[]
 }
 
 export interface TestExecutionOptions {

@@ -1,352 +1,141 @@
-# Enterprise Playwright AI Automation Framework
+# Enterprise Playwright AI Automation Platform
 
-A comprehensive, enterprise-grade framework that combines Playwright with AI capabilities for intelligent test generation, execution, and management.
-
-## Getting Started
-
-- Link your local or remote Playwright repository using the Git Integration UI or API.
-- The system will use your linked repo for all test management and execution.
-- See SETUP.md for environment and configuration details.
-
-## Running Tests
-
-- After linking your Playwright repo (local or remote), run tests using the scripts and instructions in your linked repo.
-- All test management and execution is now performed in your linked Playwright repo, not in a subfolder.
-
-## 🚀 Features
-
-### Core Automation
-- **Playwright Integration**: Full Playwright support with TypeScript
-- **Page Object Model**: Structured, maintainable test architecture
-- **Cucumber BDD**: Behavior-driven development support
-- **Multi-browser Testing**: Chrome, Firefox, Safari, and mobile browsers
-- **Parallel Execution**: Scalable test execution
-- **Comprehensive Reporting**: HTML, JSON, and JUnit reports
-
-### AI-Powered Capabilities
-- **Intelligent Test Generation**: AI-driven test case creation
-- **Code Updates**: Automated test maintenance and updates
-- **Smart Execution**: AI-assisted test execution
-- **Result Analysis**: Intelligent test result interpretation
-- **Local LLM Integration**: Ollama with Mistral/CodeLlama support
-
-### Enterprise Features
-- **Multi-tenancy**: Isolated tenant environments
-- **Security & Compliance**: GDPR, audit logging, data protection
-- **Performance Monitoring**: Real-time metrics and analytics
-- **Resource Management**: Rate limiting and usage tracking
-- **Audit Trail**: Comprehensive activity logging
-
-## 🏗️ Architecture
-
-```
-enterprise-playwright-ai/
-├── automation/                    # Core automation framework
-│   ├── src/
-│   │   ├── pages/                # Page Object Models
-│   │   ├── utils/                # Utilities and helpers
-│   │   └── config/               # Configuration files
-│   ├── tests/                    # Test specifications
-│   └── data/                     # Test data
-├── ai-layer/                     # AI integration layer
-│   ├── src/
-│   │   ├── core/                 # Core AI components
-│   │   ├── integrations/         # LLM integrations
-│   │   └── utils/                # AI utilities
-├── api-gateway/                  # API gateway (future)
-├── web-dashboard/                # Web dashboard (future)
-└── shared/                       # Shared components
-```
-
-## 🛠️ Installation
-
-### Prerequisites
-- Node.js 18+ 
-- npm or yarn
-- Ollama (for local LLM)
-
-### Setup
-
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd enterprise-playwright-ai
-```
-
-2. **Install dependencies**
-```bash
-npm install
-npm run setup
-```
-
-3. **Install Playwright browsers**
-```bash
-cd automation
-npx playwright install
-```
-
-4. **Setup Ollama (for AI features)**
-```bash
-# Install Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# Pull models
-ollama pull mistral:7b-instruct
-ollama pull codellama:7b-instruct
-```
-
-5. **Configure environment**
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
+A comprehensive, enterprise-grade Playwright automation framework with AI integration, multi-tenancy, and dynamic Git repository management.
 
 ## 🚀 Quick Start
 
-### Running Tests
+### Prerequisites
+- Node.js 18+
+- Docker (for ChromaDB)
+- Git
 
+### Setup
 ```bash
-# Run all tests
-npm test
+# Install dependencies for all packages
+npm run setup
 
-# Run tests in headed mode
-npm run test:headed
-
-# Run tests with debug
-npm run test:debug
-
-# Run specific test file
-cd automation && npx playwright test tests/login.spec.ts
-```
-
-### AI-Powered Test Generation
-
-```bash
-# Generate new test
-npm run ai:generate
-
-# Interactive chat with AI
-npm run ai:chat
-```
-
-### Example: Generate Login Test
-
-```typescript
-// Using the AI controller
-const aiController = new EnterpriseAIController(config);
-
-const request = {
-    userInput: "Create a test for login functionality with valid and invalid credentials",
-    type: "test",
-    framework: "playwright",
-    language: "typescript"
-};
-
-const generatedCode = await aiController.generateTestCode(
-    request, 
-    "default", 
-    "user123"
-);
-```
-
-## 📁 Project Structure
-
-### Automation Framework
-
-#### Page Objects
-```typescript
-// automation/src/pages/auth/LoginPage.ts
-export class LoginPage extends BasePage {
-    async login(username: string, password: string): Promise<void> {
-        await this.fillInput(this.locators.usernameInput, username);
-        await this.fillInput(this.locators.passwordInput, password);
-        await this.clickElement(this.locators.loginButton);
-    }
-}
-```
-
-#### Test Specifications
-```typescript
-// automation/tests/login.spec.ts
-test('should login successfully with valid credentials', async ({ page }) => {
-    const loginPage = new LoginPage(page);
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(page).toHaveURL(/.*inventory\.html/);
-});
-```
-
-### AI Layer
-
-#### LLM Integration
-```typescript
-// ai-layer/src/integrations/OllamaClient.ts
-const ollamaClient = new OllamaClient(config);
-const result = await ollamaClient.generate(prompt);
-```
-
-#### Enterprise Controller
-```typescript
-// ai-layer/src/core/EnterpriseAIController.ts
-const controller = new EnterpriseAIController(config);
-const code = await controller.generateTestCode(request, tenantId, userId);
-```
-
-## 🔧 Configuration
-
-### Playwright Configuration
-```typescript
-// automation/playwright.config.ts
-export default defineConfig({
-    testDir: './tests',
-    use: {
-        baseURL: 'https://www.saucedemo.com',
-        trace: 'on-first-retry',
-        screenshot: 'only-on-failure',
-    },
-    projects: [
-        { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-        { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    ]
-});
-```
-
-### AI Configuration
-```typescript
-// ai-layer/src/config/llm-config.ts
-export const LLM_CONFIGS = {
-    codeGeneration: {
-        model: 'mistral:7b-instruct',
-        temperature: 0.1,
-        maxTokens: 2048,
-        topP: 0.9,
-        topK: 40,
-    }
-};
-```
-
-## 🧪 Test Examples
-
-### Sauce Demo Application Tests
-
-The framework includes comprehensive tests for the [Sauce Demo](https://www.saucedemo.com/) application:
-
-#### Login Tests
-- Valid credentials
-- Invalid credentials
-- Locked out user
-- Performance glitch user
-- Problem user
-
-#### Inventory Tests
-- Product display
-- Add to cart
-- Remove from cart
-- Product sorting
-- Shopping cart navigation
-
-#### Checkout Tests
-- Complete checkout flow
-- Form validation
-- Error handling
-- Multiple items
-- Order completion
-
-## 🔒 Security & Compliance
-
-### Multi-tenancy
-- Isolated tenant environments
-- Resource limits per tenant
-- Permission-based access control
-
-### Audit Logging
-- Comprehensive activity tracking
-- GDPR compliance
-- Data retention policies
-- Security event monitoring
-
-### Data Protection
-- Encrypted data storage
-- Secure API communications
-- Access control and authentication
-- Privacy by design
-
-## 📊 Monitoring & Analytics
-
-### Performance Metrics
-- Response time tracking
-- Error rate monitoring
-- Resource usage analytics
-- Rate limiting enforcement
-
-### Audit Reports
-- User activity logs
-- Security event reports
-- Compliance status
-- Export capabilities (JSON, CSV, TXT)
-
-## 🚀 Deployment
-
-### Local Development
-```bash
+# Start development servers (includes ChromaDB)
 npm run dev
 ```
 
-### Production Build
+This will start:
+- **ChromaDB** (port 8000) - Vector database for chat memory
+- **API Gateway** (port 3001) - Backend services
+- **Web Dashboard** (port 3000) - Frontend interface
+
+### Manual Setup (if needed)
 ```bash
-npm run build
-npm start
+# Start ChromaDB separately
+npm run chromadb:start
+
+# Start API Gateway
+npm run api:dev
+
+# Start Web Dashboard  
+npm run web:dev
 ```
 
-### Docker (Future)
-```bash
-docker build -t playwright-ai .
-docker run -p 3000:3000 playwright-ai
+## 🏗️ Architecture
+
+### Monorepo Structure
+```
+Play/
+├── shared/                    # Shared code between layers
+│   ├── GitAutomationService.ts
+│   └── AITypes.ts
+├── ai-layer/                  # AI/LLM integration
+├── api-gateway/              # Backend API services
+├── web-dashboard/            # Next.js frontend
+└── prisma/                   # Database schema
 ```
 
-## 🤝 Contributing
+### Key Features
+- **Multi-tenant AI Chat** with ChromaDB memory
+- **Dynamic Git Integration** (local/remote repos)
+- **Playwright Test Management** with AI assistance
+- **Enterprise Security** & compliance features
+- **Real-time WebSocket** communication
+- **Analytics & Reporting** dashboard
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
+## 🔧 Development
 
-## 📝 License
+### Available Scripts
+- `npm run dev` - Start all services (ChromaDB + API + Web)
+- `npm run chromadb:start` - Start ChromaDB container
+- `npm run chromadb:stop` - Stop ChromaDB container
+- `npm run api:dev` - Start API Gateway only
+- `npm run web:dev` - Start Web Dashboard only
 
-MIT License - see LICENSE file for details
+### Environment Variables
+Create `.env` files in each package directory:
 
-## 🆘 Support
+**api-gateway/.env:**
+```env
+PORT=3001
+WEB_DASHBOARD_URL=http://localhost:3000
+CHROMA_URL=http://localhost:8000
+DATABASE_URL="postgresql://..."
+```
 
-- Documentation: [Wiki](link-to-wiki)
-- Issues: [GitHub Issues](link-to-issues)
-- Discussions: [GitHub Discussions](link-to-discussions)
+**web-dashboard/.env.local:**
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
 
-## 🔮 Roadmap
+## 📊 Services
 
-### Phase 1: Core Framework ✅
-- [x] Playwright automation framework
-- [x] Page Object Model implementation
-- [x] Basic test structure
-- [x] Sauce Demo test suite
+### ChromaDB Integration
+- **Purpose**: Vector database for chat memory and context
+- **Port**: 8000
+- **Features**: 
+  - User/repo-specific chat history
+  - Semantic search for context
+  - Persistent conversation memory
 
-### Phase 2: AI Integration ✅
-- [x] Ollama integration
-- [x] AI controller
-- [x] Code generation capabilities
-- [x] Security validation
+### API Gateway
+- **Port**: 3001
+- **Features**:
+  - AI chat processing
+  - Git repository management
+  - Test execution
+  - Analytics & reporting
 
-### Phase 3: Enterprise Features ✅
-- [x] Multi-tenancy
-- [x] Audit logging
-- [x] Performance monitoring
-- [x] Compliance checking
+### Web Dashboard
+- **Port**: 3000
+- **Features**:
+  - Modern React/Next.js UI
+  - Real-time chat interface
+  - Test management dashboard
+  - Analytics visualization
 
-### Phase 4: Advanced Features (Future)
-- [ ] Web dashboard
-- [ ] API gateway
-- [ ] Kubernetes deployment
-- [ ] Advanced analytics
-- [ ] Machine learning insights
+## 🤖 AI Features
+
+### Chat Commands
+- `count tests` - Count test files and scenarios
+- `analyze framework` - Analyze test framework structure
+- `run login feature` - Execute specific test features
+- `ai workflow` - Start AI-powered automation workflow
+
+### Git Automation
+- Create feature branches
+- Generate and commit code
+- Push to remote repositories
+- Automated PR creation
+
+## 🔒 Security & Compliance
+
+- Multi-tenant isolation
+- Audit logging
+- Data encryption
+- Access control
+- GDPR compliance features
+
+## 📈 Analytics
+
+- Test execution metrics
+- Performance monitoring
+- Coverage analysis
+- Trend reporting
 
 ---
 

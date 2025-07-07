@@ -1,6 +1,5 @@
 import { spawn } from 'child_process'
 import { logger } from '../utils/logger'
-import path from 'path'
 import { EventEmitter } from 'events'
 import { getLinkedRepoPathForUser } from '../utils/repoUtils'
 
@@ -27,24 +26,10 @@ export class TestExecutionService extends EventEmitter {
 
   constructor() {
     super()
-    this.initialize()
+    // Remove this.initialize() from the constructor
   }
 
-  private async initialize(): Promise<void> {
-    try {
-      // Check if automation layer exists
-      const repoPath = await getLinkedRepoPathForUser(userId)
-      if (!repoPath) { throw new Error('No Playwright repo linked. Please link a repo first.') }
-
-      this.isReady = true
-      logger.info('Test execution service initialized successfully')
-    } catch (error) {
-      logger.error('Failed to initialize test execution service:', error)
-      this.isReady = false
-    }
-  }
-
-  public async startExecution(testFile: string, options: TestExecutionOptions = {}): Promise<string> {
+  public async startExecution(userId: string, testFile: string, options: TestExecutionOptions = {}): Promise<string> {
     const executionId = this.generateExecutionId()
     
     try {
@@ -62,7 +47,7 @@ export class TestExecutionService extends EventEmitter {
       this.executions.set(executionId, execution)
       
       // Start the test execution in background
-      this.runTestExecution(executionId, testFile, options)
+      this.runTestExecution(userId, executionId, testFile, options)
       
       return executionId
     } catch (error) {
@@ -71,7 +56,7 @@ export class TestExecutionService extends EventEmitter {
     }
   }
 
-  private async runTestExecution(executionId: string, testFile: string, options: TestExecutionOptions): Promise<void> {
+  private async runTestExecution(userId: string, executionId: string, testFile: string, options: TestExecutionOptions): Promise<void> {
     try {
       const repoPath = await getLinkedRepoPathForUser(userId)
       if (!repoPath) { throw new Error('No Playwright repo linked. Please link a repo first.') }
@@ -210,7 +195,7 @@ export class TestExecutionService extends EventEmitter {
     this.on(`execution-${executionId}`, callback)
   }
 
-  public async cancelExecution(executionId: string): Promise<boolean> {
+  public async cancelExecution(_userId: string, executionId: string): Promise<boolean> {
     try {
       const execution = this.executions.get(executionId)
       if (!execution || execution.status !== 'running') {
@@ -246,7 +231,7 @@ export class TestExecutionService extends EventEmitter {
     return this.isReady
   }
 
-  public async healthCheck(): Promise<boolean> {
+  public async healthCheck(userId: string): Promise<boolean> {
     try {
       const repoPath = await getLinkedRepoPathForUser(userId)
       return repoPath !== null

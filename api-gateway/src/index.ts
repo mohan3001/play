@@ -88,9 +88,10 @@ io.on('connection', (socket) => {
     logger.info(`Client ${socket.id} joined room: ${room}`)
   })
   
-  socket.on('ai-chat', async (data: { message: string; sessionId: string }) => {
+  socket.on('ai-chat', async (data: { message: string; sessionId: string; userId?: string }) => {
     try {
-      const response = await aiService.processChatMessage(data.message, data.sessionId)
+      const userId = data.userId || socket.id; // Use socket.id as fallback for userId
+      const response = await aiService.processChatMessage(data.message, userId)
       socket.emit('ai-response', {
         message: response,
         timestamp: new Date().toISOString()

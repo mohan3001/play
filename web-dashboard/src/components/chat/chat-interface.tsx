@@ -8,18 +8,23 @@ import { Send, Bot, User, Loader2, Sparkles, FileText, Play, GitBranch } from "l
 import { cn } from "@/lib/utils"
 import { apiClient, AIResponse } from "@/lib/api"
 
+// Update Message['type'] to match backend response types
 interface Message {
   id: string
-  type: 'user' | 'ai'
+  type: 'user' | 'ai' | 'action' | 'error' | 'text' | 'command'
   content: string
   timestamp: Date
   isLoading?: boolean
   isSpecialCommand?: boolean
   commandType?: string
+  actionResult?: string
+  suggestions?: string[]
 }
 
 interface ChatInterfaceProps {
   className?: string
+  onActionResult?: (result: Message) => void
+  onError?: (err: string) => void
 }
 
 // Smart suggestions based on context
@@ -78,7 +83,7 @@ const getSuggestions = (messages: Message[], isLoading: boolean) => {
   return defaultSuggestions;
 };
 
-export function ChatInterface({ className }: ChatInterfaceProps) {
+export function ChatInterface({ className, onActionResult, onError }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -119,25 +124,45 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
       // Call real AI service
       const sessionId = 'web-dashboard-session'
       const response = await apiClient.sendChatMessage(currentInput, sessionId)
+      let aiType: Message['type'] = 'ai';
+      let actionResult = '';
+      let suggestions: string[] = [];
+      
+      if (response.type && response.type.toLowerCase() === 'action') {
+        aiType = 'action';
+        actionResult = response.message;
+        if (onActionResult) onActionResult({ ...userMessage, type: 'action', content: response.message, actionResult });
+      } else if (response.type && response.type.toLowerCase() === 'error') {
+        aiType = 'error';
+        if (onError) onError(response.message);
+      }
+      
+      // Extract suggestions from response
+      if (response.suggestions && Array.isArray(response.suggestions)) {
+        suggestions = response.suggestions;
+      }
       
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        type: 'ai',
+        type: aiType,
         content: response.message,
         timestamp: new Date(),
-        isSpecialCommand: isSpecialCommand(currentInput)
+        isSpecialCommand: isSpecialCommand(currentInput),
+        actionResult,
+        suggestions
       }
-      
       setMessages(prev => [...prev, aiResponse])
     } catch (error) {
+      const errorMsg = 'Sorry, I encountered an error processing your request. Please try again.';
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        type: 'error',
+        content: errorMsg,
         timestamp: new Date(),
         isSpecialCommand: false
       }
       setMessages(prev => [...prev, errorResponse])
+      if (onError) onError(errorMsg);
     } finally {
       setIsLoading(false)
     }
@@ -185,7 +210,6 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
           <Badge variant="success">Online</Badge>
         </div>
       </CardHeader>
-      
       <CardContent className="flex-1 flex flex-col p-0">
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -198,105 +222,97 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
               )}
             >
               {message.type === 'ai' && (
-                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <Bot className="h-4 w-4 text-blue-600" />
+                <div className="flex items-start gap-2">
+                  <Bot className="h-5 w-5 text-blue-600" />
+                  <div className="bg-gray-100 rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
+                    {message.content}
+                    {message.suggestions && message.suggestions.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="text-sm text-gray-600 mb-2">💡 Suggested next questions:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {message.suggestions.map((suggestion, index) => (
+                            <Button
+                              key={index}
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => handleSuggestionClick(suggestion)}
+                            >
+                              {suggestion}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              
-              <div
-                className={cn(
-                  "max-w-[80%] rounded-lg p-3",
-                  message.type === 'user'
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-900"
-                )}
-              >
-                {message.isSpecialCommand && (
-                  <Badge variant="info" className="mb-2">
-                    Special Command
-                  </Badge>
-                )}
-                <div className="whitespace-pre-wrap text-sm">
-                  {message.content}
+              {message.type === 'action' && (
+                <div className="flex items-start gap-2">
+                  <Sparkles className="h-5 w-5 text-green-600" />
+                  <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
+                    <Badge variant="success">Action</Badge>
+                    <div>{message.content}</div>
+                    {message.actionResult && <div className="mt-2 text-green-700">{message.actionResult}</div>}
+                  </div>
                 </div>
-                <div className={cn(
-                  "text-xs mt-2",
-                  message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
-                )}>
-                  {message.timestamp.toLocaleTimeString()}
+              )}
+              {message.type === 'error' && (
+                <div className="flex items-start gap-2">
+                  <Loader2 className="h-5 w-5 text-red-600 animate-spin" />
+                  <div className="bg-red-50 border-l-4 border-red-400 rounded-lg px-4 py-2 max-w-xl text-red-700">
+                    {message.content}
+                  </div>
                 </div>
-              </div>
-              
+              )}
               {message.type === 'user' && (
-                <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                  <User className="h-4 w-4 text-gray-600" />
+                <div className="flex items-end gap-2">
+                  <div className="bg-blue-600 text-white rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
+                    {message.content}
+                  </div>
+                  <User className="h-5 w-5 text-blue-600" />
                 </div>
               )}
             </div>
           ))}
-          
           {isLoading && (
             <div className="flex gap-3 justify-start">
-              <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                <Bot className="h-4 w-4 text-blue-600" />
-              </div>
-              <div className="bg-gray-100 rounded-lg p-3">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm text-gray-600">AI is thinking...</span>
-                </div>
-              </div>
+              <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+              <div className="bg-blue-50 rounded-lg px-4 py-2 max-w-xl">Thinking...</div>
             </div>
           )}
-          
           <div ref={messagesEndRef} />
         </div>
-        
-        {/* Smart Suggestions */}
-        {suggestions.length > 0 && (
-          <div className="px-4 pb-2">
-            <p className="text-xs text-gray-500 mb-2">💡 Quick suggestions:</p>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((suggestion, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  disabled={isLoading}
-                  className="text-xs h-8 px-3"
-                >
-                  {suggestion}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Input Area */}
-        <form onSubmit={handleSubmit} className="p-4 border-t">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask me anything about your tests, framework, or test automation..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
-              disabled={!inputValue.trim() || isLoading}
-              size="sm"
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              ) : (
-                'Send'
-              )}
+        {/* Quick Actions */}
+        <div className="flex gap-2 px-4 pb-2">
+          {quickActions.map(action => (
+            <Button key={action.label} variant="outline" size="sm" onClick={() => handleQuickAction(action.command)}>
+              <action.icon className="h-4 w-4 mr-1" /> {action.label}
             </Button>
-          </div>
+          ))}
+        </div>
+        {/* Input Area */}
+        <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 pb-4">
+          <input
+            type="text"
+            className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Ask me anything about your tests, framework, or test automation..."
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            disabled={isLoading}
+          />
+          <Button type="submit" disabled={isLoading || !inputValue.trim()}>
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
         </form>
+        {/* Suggestions */}
+        <div className="flex flex-wrap gap-2 px-4 pb-4">
+          {suggestions.map(suggestion => (
+            <Button key={suggestion} variant="ghost" size="sm" onClick={() => handleSuggestionClick(suggestion)}>
+              {suggestion}
+            </Button>
+          ))}
+        </div>
       </CardContent>
     </Card>
   )

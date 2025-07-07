@@ -6,6 +6,12 @@ import Joi from 'joi'
 const router = Router()
 const aiService = new AIService()
 
+// Helper to get userId from request, fallback to a default for dev
+function getUserId(req: any): string {
+  // In production, req.user should be set by authentication middleware
+  return req.user?.id || 'default-user';
+}
+
 // Chat message schema
 const chatMessageSchema = Joi.object({
   message: Joi.string().required().min(1).max(1000),
@@ -20,15 +26,16 @@ const commandSchema = Joi.object({
 // Process chat message
 router.post('/chat', validateRequest(chatMessageSchema), async (req, res) => {
   try {
-    const { message, sessionId } = req.body
-    const response = await aiService.processChatMessage(message, sessionId)
+    const { message } = req.body
+    const userId = getUserId(req);
+    const response = await aiService.processChatMessage(message, userId)
     
-    res.json({
+    return res.json({
       success: true,
       data: response
     })
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: {
         message: 'Failed to process chat message',
