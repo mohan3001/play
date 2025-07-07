@@ -269,21 +269,74 @@ async function executeCommand(parsedCommand: any, input: string, workingDirector
     case 'run_all_tests': {
       const analysis = await analyzeTestStructure(workingDirectory);
       console.log('🚀 Running all tests...');
-      
-      if (analysis.primaryFramework === 'playwright') {
-        const result = execSync('npx playwright test', { 
-          encoding: 'utf8',
-          cwd: workingDirectory
-        });
-        console.log(result);
-      } else if (analysis.primaryFramework === 'jest') {
-        const result = execSync('npm test', { 
-          encoding: 'utf8',
-          cwd: workingDirectory
-        });
-        console.log(result);
-      } else {
-        console.log('❌ No supported test framework detected. Please ensure Playwright or Jest is configured.');
+      let ranScript = false;
+      let scriptName = '';
+      let scriptCmd = '';
+      try {
+        // Try to read package.json and look for test scripts
+        const pkgPath = path.join(workingDirectory, 'package.json');
+        if (fs.existsSync(pkgPath)) {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          const scripts = pkg.scripts || {};
+          // Prefer 'test', then 'e2e', then 'playwright', then 'cucumber'
+          const candidates = ['test', 'e2e', 'playwright', 'cucumber'];
+          for (const candidate of candidates) {
+            if (scripts[candidate]) {
+              scriptName = candidate;
+              scriptCmd = scripts[candidate];
+              break;
+            }
+          }
+          if (scriptName) {
+            console.log(`- Detected test script in package.json: "${scriptName}": "${scriptCmd}"`);
+            console.log(`- Running: npm run ${scriptName}`);
+            const result = execSync(`npm run ${scriptName}`, {
+              encoding: 'utf8',
+              cwd: workingDirectory
+            });
+            console.log(result);
+            ranScript = true;
+          }
+        }
+        if (!ranScript) {
+          // Fallback to framework detection
+          if (analysis.primaryFramework === 'playwright') {
+            console.log('- No test script found in package.json.');
+            console.log('- Detected Playwright config.');
+            console.log('- Running: npx playwright test');
+            const result = execSync('npx playwright test', {
+              encoding: 'utf8',
+              cwd: workingDirectory
+            });
+            console.log(result);
+            ranScript = true;
+          } else if (analysis.primaryFramework === 'jest') {
+            console.log('- No test script found in package.json.');
+            console.log('- Detected Jest config.');
+            console.log('- Running: npx jest');
+            const result = execSync('npx jest', {
+              encoding: 'utf8',
+              cwd: workingDirectory
+            });
+            console.log(result);
+            ranScript = true;
+          } else if (analysis.primaryFramework === 'cucumber') {
+            console.log('- No test script found in package.json.');
+            console.log('- Detected Cucumber config.');
+            console.log('- Running: npx cucumber-js');
+            const result = execSync('npx cucumber-js', {
+              encoding: 'utf8',
+              cwd: workingDirectory
+            });
+            console.log(result);
+            ranScript = true;
+          }
+        }
+        if (!ranScript) {
+          console.log('❌ No test script or supported framework detected. Please add a test script to your package.json or configure Playwright, Jest, or Cucumber.');
+        }
+      } catch (err) {
+        console.log('❌ Error running tests:', err instanceof Error ? err.message : err);
       }
       break;
     }
