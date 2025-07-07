@@ -410,9 +410,15 @@ async function executeCommand(parsedCommand: any, input: string, workingDirector
     
     case 'list_feature_files': {
       const analysis = await analyzeTestStructure(workingDirectory);
+      const countOnly = parsedCommand.countOnly || /count/i.test(input);
       if (analysis.cucumberFeatures.length > 0) {
-        console.log('🥒 Cucumber Feature Files:');
-        analysis.cucumberFeatures.forEach(file => console.log(`   📄 ${file}`));
+        if (countOnly) {
+          console.log(`🥒 Total Cucumber Feature Files: ${analysis.cucumberFeatures.length}`);
+        } else {
+          console.log('🥒 Cucumber Feature Files:');
+          analysis.cucumberFeatures.forEach(file => console.log(`   📄 ${file}`));
+          console.log(`\nTotal: ${analysis.cucumberFeatures.length} feature files`);
+        }
       } else {
         console.log('❌ No Cucumber feature files found.');
       }

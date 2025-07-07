@@ -35,11 +35,8 @@ export class IntelligentCommandParser {
         ]);
 
         // Count feature files variations
-        this.commandMappings.set('count_features', [
-            'count feature files', 'how many feature files', 'feature files count',
-            'list features', 'show features', 'feature count', 'cucumber files',
-            'bdd files', 'gherkin files', 'list feature files'
-        ]);
+        // (Merged into list_feature_files below)
+        // this.commandMappings.set('count_features', [ ... ]);
 
         // Run login feature variations
         this.commandMappings.set('run_login', [
@@ -124,7 +121,9 @@ export class IntelligentCommandParser {
             'rerun last failed tests', 'run last failed tests', 're-execute failed tests', 'run failed tests again', 'rerun failures', 'retry failed tests'
         ]);
         this.commandMappings.set('list_feature_files', [
-            'list feature files', 'show feature files', 'display feature files', 'list cucumber files', 'show cucumber files', 'display cucumber files', 'list gherkin files', 'show gherkin files'
+            'list feature files', 'show feature files', 'display feature files', 'list cucumber files', 'show cucumber files', 'display cucumber files', 'list gherkin files', 'show gherkin files',
+            'count feature files', 'how many feature files', 'feature files count', 'list features', 'show features', 'feature count', 'cucumber files', 'bdd files', 'gherkin files',
+            'feature files'
         ]);
         this.commandMappings.set('run_feature_file', [
             'run feature file', 'execute feature file', 'run <feature file>', 'execute <feature file>', 'run cucumber file', 'run gherkin file'
@@ -286,7 +285,7 @@ If the message doesn't match any command, respond with:
     private mapIntentToCommand(intent: CommandIntent): string | null {
         const actionMap: Record<string, string> = {
             'count_tests': 'count_tests',
-            'count_features': 'count_features', 
+            'count_features': 'list_feature_files', 
             'run_login': 'run_login',
             'explain_feature': 'explain_feature',
             'view_results': 'view_results',
