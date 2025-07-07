@@ -164,15 +164,4 @@ export interface RepoMetadata {
     baseUrl: string;
     testFolders: string[];
     userRoles: string[];
-}
-
-model LinkedRepo {
-  id             Int      @id @default(autoincrement())
-  userId         String
-  repoType       String   // 'local' or 'remote'
-  localPath      String?  // for local repos
-  remoteUrl      String?  // for remote repos
-  playwrightRoot String?  // path to Playwright config root
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
 } 
