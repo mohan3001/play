@@ -2,10 +2,26 @@ import express from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { linkRepo, unlinkRepo, getLinkedRepo, getLinkedRepoPathForUser } from '../utils/repoUtils';
+import { linkRepo, unlinkRepo, getLinkedRepo, getLinkedRepoPathForUser, updateRepoIndexStatus, DEFAULT_ALLOWED_EXTENSIONS } from '../utils/repoUtils';
 import { getRepoChunksForEmbedding } from '../utils/repoUtils';
-import { upsertEmbeddings, deleteEmbeddingsForRepo } from '../utils/chromadb';
+import { upsertEmbeddings, deleteEmbeddingsForRepo, storeChatMessage, getChatHistory, queryEmbeddings } from '../utils/chromadb';
+import { Prisma } from '@prisma/client';
 const os = require('os');
+const fetch = require('node-fetch');
+
+type LinkedRepoWithIndexStatus = {
+  id: number;
+  userId: string;
+  repoType: string;
+  localPath: string | null;
+  remoteUrl: string | null;
+  playwrightRoot: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  lastIndexStatus?: string | null;
+  lastIndexError?: string | null;
+  lastIndexTime?: Date | null;
+};
 
 const router = express.Router();
 
@@ -24,6 +40,26 @@ function validatePlaywrightRepo(repoPath: string): boolean {
   } catch {
     return false;
   }
+}
+
+// Add the collection naming function at the top
+// Create a deterministic collection name based on userId (same as in chromadb.ts)
+function getCollectionName(userId: string): string {
+  // Create a deterministic UUID based on userId
+  const crypto = require('crypto');
+  const hash = crypto.createHash('md5').update(userId).digest('hex');
+  // Format as a proper UUID: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  return `${hash.substring(0, 8)}-${hash.substring(8, 12)}-4${hash.substring(13, 16)}-a${hash.substring(17, 20)}-${hash.substring(20, 32)}`;
+}
+
+// Add this helper at the top, matching chromadb.ts
+const CHROMA_URL = process.env['CHROMA_URL'] || 'http://localhost:8000';
+async function getCollectionIdByName(collectionName: string): Promise<string | null> {
+  const response = await fetch(`${CHROMA_URL}/api/v1/collections`);
+  if (!response.ok) return null;
+  const collections = await response.json();
+  const found = collections.find((col: any) => col.name === collectionName);
+  return found ? found.id : null;
 }
 
 // Get repository info
@@ -68,7 +104,10 @@ router.get('/info', async (req, res) => {
       type: repo.repoType,
       status,
       lastSync: repo.updatedAt || repo.createdAt,
-      errorDetail: status === 'disconnected' ? errorDetail : undefined
+      errorDetail: status === 'disconnected' ? errorDetail : undefined,
+      lastIndexStatus: repo.lastIndexStatus,
+      lastIndexError: repo.lastIndexError,
+      lastIndexTime: repo.lastIndexTime,
     }
   });
 });
@@ -77,7 +116,7 @@ router.get('/info', async (req, res) => {
 router.post('/link', async (req, res) => {
   try {
     const userId = getUserId(req);
-    const { path: repoPath, type, accessToken, playwrightRoot } = req.body;
+    const { path: repoPath, type, accessToken, playwrightRoot, extensions } = req.body;
     if (!repoPath) {
       return res.status(400).json({ error: 'Repository path is required' });
     }
@@ -126,25 +165,42 @@ router.post('/link', async (req, res) => {
       localPath: type === 'local' ? repoPath : localPath,
       remoteUrl: type === 'remote' ? repoPath : undefined,
       accessToken: accessToken ? Buffer.from(accessToken).toString('base64') : undefined,
-      playwrightRoot
+      playwrightRoot,
+      lastIndexStatus: 'pending',
+      lastIndexError: null,
+      lastIndexTime: new Date(),
     });
     // Fetch the updated repo to get updatedAt/createdAt
-    const repo = await getLinkedRepo(userId);
+    let repoResult = await getLinkedRepo(userId);
+    if (!repoResult) {
+      return res.status(500).json({ error: 'Failed to fetch linked repo after linking.' });
+    }
+    let repo: LinkedRepoWithIndexStatus = repoResult;
     // RAG: Index repo for semantic search
     try {
-      const chunks = await getRepoChunksForEmbedding(localPath);
+      const chunks = await getRepoChunksForEmbedding(localPath, extensions || DEFAULT_ALLOWED_EXTENSIONS);
       await upsertEmbeddings({ userId, repoId: userId, chunks });
+      // Update status to success
+      await updateRepoIndexStatus(userId, 'success', null);
+      const repoSuccess = await getLinkedRepo(userId);
+      if (repoSuccess) repo = repoSuccess;
     } catch (err) {
       console.error('RAG indexing failed:', err);
+      await updateRepoIndexStatus(userId, 'error', err instanceof Error ? err.message : String(err));
+      const repoError = await getLinkedRepo(userId);
+      if (repoError) repo = repoError;
     }
     return res.json({
-      success: true,
-      message: 'Repository linked successfully',
+      success: repo?.lastIndexStatus === 'success',
+      message: repo?.lastIndexStatus === 'success' ? 'Repository linked and indexed successfully' : 'Repository linked, but indexing failed',
       repo: {
         path: repoPath,
         type,
         status: 'connected',
-        lastSync: repo?.updatedAt || repo?.createdAt
+        lastSync: repo?.updatedAt || repo?.createdAt,
+        lastIndexStatus: repo?.lastIndexStatus,
+        lastIndexError: repo?.lastIndexError,
+        lastIndexTime: repo?.lastIndexTime,
       }
     });
   } catch (error: any) {
@@ -201,21 +257,27 @@ router.get('/rag-status', async (req, res) => {
     if (!repo || !repo.localPath) {
       return res.status(404).json({ indexed: false, message: 'No repo linked' });
     }
-    const { ChromaClient } = require('chromadb');
-    // @ts-ignore
-    const { OllamaEmbeddingFunction } = require('chromadb/dist/embedding_functions');
-    const CHROMA_URL = process.env['CHROMA_URL'] || 'http://localhost:8000';
-    const client = new ChromaClient({ path: CHROMA_URL });
-    const collectionName = `repo-${userId}`;
-    let collection;
-    try {
-      collection = await client.getCollection({ name: collectionName, embeddingFunction: new OllamaEmbeddingFunction({ url: (process.env['OLLAMA_HOST'] || 'http://localhost:11434') + '/api/embeddings', model: 'nomic-embed-text' }) });
-    } catch {
+    
+    const collectionName = getCollectionName(userId);
+    const collectionId = await getCollectionIdByName(collectionName);
+    if (!collectionId) {
       return res.json({ indexed: false, message: 'No RAG index found' });
     }
-    const count = await collection.count();
-    // Optionally, you could store last indexed time in a DB or as metadata
-    return res.json({ indexed: true, chunkCount: count });
+    console.log(`[RAG-STATUS] userId: ${userId}, collectionName: ${collectionName}, collectionId: ${collectionId}`);
+    // Check if collection exists using v1 API
+    try {
+      // Get collection count using v1 API and collectionId
+      const countResponse = await fetch(`${CHROMA_URL}/api/v1/collections/${collectionId}/count`);
+      const countText = await countResponse.text();
+      console.log(`[RAG-STATUS] count response: ${countText}`);
+      if (!countResponse.ok) {
+        return res.json({ indexed: true, chunkCount: 'unknown' });
+      }
+      const count = Number(countText);
+      return res.json({ indexed: true, chunkCount: count });
+    } catch (error) {
+      return res.json({ indexed: false, message: 'Error checking RAG status' });
+    }
   } catch (err) {
     return res.status(500).json({ indexed: false, message: 'Error checking RAG status', error: err instanceof Error ? err.message : err });
   }
@@ -229,12 +291,44 @@ router.post('/rag-reindex', async (req, res) => {
     if (!repo || !repo.localPath) {
       return res.status(404).json({ success: false, message: 'No repo linked' });
     }
+    const { extensions } = req.body || {};
     // Remove old index
     try { await deleteEmbeddingsForRepo(userId); } catch {}
+    // Set status to pending
+    await updateRepoIndexStatus(userId, 'pending', null);
+    let updatedRepoResult = await getLinkedRepo(userId);
+    if (!updatedRepoResult) {
+      return res.status(500).json({ success: false, message: 'Failed to fetch linked repo after setting pending status.' });
+    }
+    let updatedRepo: LinkedRepoWithIndexStatus = updatedRepoResult;
     // Re-index
-    const chunks = await getRepoChunksForEmbedding(repo.localPath);
-    await upsertEmbeddings({ userId, repoId: userId, chunks });
-    return res.json({ success: true, message: 'Re-indexed successfully', chunkCount: chunks.length });
+    try {
+      const chunks = await getRepoChunksForEmbedding(repo.localPath, extensions || DEFAULT_ALLOWED_EXTENSIONS);
+      await upsertEmbeddings({ userId, repoId: userId, chunks });
+      await updateRepoIndexStatus(userId, 'success', null);
+      const repoSuccess = await getLinkedRepo(userId);
+      if (repoSuccess) updatedRepo = repoSuccess;
+      return res.json({
+        success: true,
+        message: 'Re-indexed successfully',
+        chunkCount: chunks.length,
+        lastIndexStatus: updatedRepo?.lastIndexStatus,
+        lastIndexError: updatedRepo?.lastIndexError,
+        lastIndexTime: updatedRepo?.lastIndexTime,
+      });
+    } catch (err) {
+      await updateRepoIndexStatus(userId, 'error', err instanceof Error ? err.message : String(err));
+      const repoError = await getLinkedRepo(userId);
+      if (repoError) updatedRepo = repoError;
+      return res.status(500).json({
+        success: false,
+        message: 'Error during re-index',
+        error: err instanceof Error ? err.message : err,
+        lastIndexStatus: updatedRepo?.lastIndexStatus,
+        lastIndexError: updatedRepo?.lastIndexError,
+        lastIndexTime: updatedRepo?.lastIndexTime,
+      });
+    }
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Error during re-index', error: err instanceof Error ? err.message : err });
   }
@@ -243,21 +337,32 @@ router.post('/rag-reindex', async (req, res) => {
 // Admin: List all indexed repos and their chunk counts
 router.get('/rag-admin-list', async (req, res) => {
   try {
-    const { ChromaClient } = require('chromadb');
-    // @ts-ignore
-    const { OllamaEmbeddingFunction } = require('chromadb/dist/embedding_functions');
     const CHROMA_URL = process.env['CHROMA_URL'] || 'http://localhost:8000';
-    const client = new ChromaClient({ path: CHROMA_URL });
-    const collections = await client.listCollections();
+    
+    // Get all collections using v1 API
+    const listResponse = await fetch(`${CHROMA_URL}/api/v1/collections`);
+    if (!listResponse.ok) {
+      return res.status(500).json({ message: 'Failed to list collections', error: 'ChromaDB not accessible' });
+    }
+    
+    const collections = await listResponse.json() as any[];
     const results = [];
+    
     for (const col of collections) {
       let count = 0;
       try {
-        const collection = await client.getCollection({ name: col.name, embeddingFunction: new OllamaEmbeddingFunction({ url: (process.env['OLLAMA_HOST'] || 'http://localhost:11434') + '/api/embeddings', model: 'nomic-embed-text' }) });
-        count = await collection.count();
-      } catch {}
+        // Get count for each collection
+        const countResponse = await fetch(`${CHROMA_URL}/api/v1/collections/${col.name}/count`);
+        if (countResponse.ok) {
+          const countData = await countResponse.json() as { count: number };
+          count = countData.count || 0;
+        }
+      } catch (error) {
+        console.error(`Failed to get count for collection ${col.name}:`, error);
+      }
       results.push({ name: col.name, chunkCount: count });
     }
+    
     return res.json({ repos: results });
   } catch (err) {
     return res.status(500).json({ message: 'Error listing indexed repos', error: err instanceof Error ? err.message : err });
@@ -273,6 +378,38 @@ router.post('/rag-admin-cleanup', async (req, res) => {
     return res.json({ success: true, message: `Cleaned up RAG index for userId ${userId}` });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Error during cleanup', error: err instanceof Error ? err.message : err });
+  }
+});
+
+// RAG Query endpoint
+router.post('/rag-query', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { query, topK } = req.body || {};
+    if (!query) return res.status(400).json({ error: 'Missing query' });
+    // Use the same logic as upsert/query: userId is the collection key
+    const results = await queryEmbeddings({ repoId: userId, query, topK: topK || 5 });
+    // Format results for easier consumption
+    const formatted = [];
+    const anyResults = results as any;
+    const ids = anyResults.ids?.[0] || [];
+    const scores = anyResults.distances?.[0] || [];
+    const metadatas = anyResults.metadatas?.[0] || [];
+    const docs = anyResults.documents?.[0] || [];
+    for (let i = 0; i < ids.length; i++) {
+      formatted.push({
+        id: ids[i],
+        score: scores[i],
+        filePath: metadatas[i]?.filePath,
+        startLine: metadatas[i]?.startLine,
+        endLine: metadatas[i]?.endLine,
+        text: docs[i],
+        metadata: metadatas[i],
+      });
+    }
+    return res.json({ results: formatted });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : err });
   }
 });
 

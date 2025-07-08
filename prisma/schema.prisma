@@ -16,4 +16,7 @@ model LinkedRepo {
   playwrightRoot String?  // path to Playwright config root
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  lastIndexStatus String?   // 'pending', 'success', 'error', etc.
+  lastIndexError  String?   // error message if indexing failed
+  lastIndexTime   DateTime? // last time indexing was attempted
 }
