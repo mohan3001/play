@@ -3,7 +3,7 @@ import { logger } from '../utils/logger'
 import path from 'path'
 import { GitAutomationService, extractRepoMetadata } from '../../../shared/GitAutomationService';
 import { getLinkedRepo } from '../utils/repoUtils';
-import { getChatHistory, storeChatMessage } from '../utils/chromadb';
+import { getChatHistory, storeChatMessage, queryEmbeddings } from '../utils/chromadb';
 import { TestExecutionService } from './testExecution';
 
 const testExecutionService = new TestExecutionService();
@@ -47,6 +47,7 @@ export interface AIResponse {
   data?: any
   timestamp: string
   suggestions?: string[]
+  ragUsed?: boolean
 }
 
 export class AIService {
@@ -86,11 +87,29 @@ export class AIService {
         return { message: 'No Playwright repo linked. Please link a repo first.', type: 'error', timestamp: new Date().toISOString() };
       }
 
-      // 2. Gather repo context
+      let ragUsed = false;
+      // 2. RAG: Retrieve top-5 relevant chunks from embeddings
+      let ragContext = '';
+      try {
+        const ragResults = await queryEmbeddings({ repoId: userId, query: message, topK: 5 });
+        if (ragResults && ragResults.documents && ragResults.documents[0]) {
+          ragContext = ragResults.documents[0].map((doc: string | null, i: number) => {
+            if (!doc) return '';
+            const meta = ragResults.metadatas && ragResults.metadatas[0] ? ragResults.metadatas[0][i] : undefined;
+            if (!meta) return doc;
+            return `File: ${meta['filePath']} (lines ${meta['startLine']}-${meta['endLine']}):\n${doc}`;
+          }).filter(Boolean).join('\n\n');
+          if (ragContext.trim().length > 0) ragUsed = true;
+        }
+      } catch (err) {
+        // If RAG fails, fallback to current logic
+        ragContext = '';
+      }
+
+      // 3. Gather repo context (fallback, for completeness)
       const fs = require('fs');
       const path = require('path');
       const repoPath = repo.localPath;
-      // Directory tree (depth 2)
       function getDirTree(dir: string, depth = 2, prefix = ''): string {
         if (depth < 0) return '';
         let tree = '';
@@ -110,13 +129,11 @@ export class AIService {
         return tree;
       }
       const dirTree = getDirTree(repoPath, 2);
-      // package.json
       let pkgJson = '';
       const pkgPath = path.join(repoPath, 'package.json');
       if (fs.existsSync(pkgPath)) {
         pkgJson = fs.readFileSync(pkgPath, 'utf8');
       }
-      // Key configs
       const configs: Record<string, string> = {};
       const configFiles = ['playwright.config.ts', 'playwright.config.js', 'jest.config.js', 'cucumber.js', 'README.md'];
       for (const file of configFiles) {
@@ -126,18 +143,22 @@ export class AIService {
         }
       }
 
-      // 3. Build LLM prompt
+      // 4. Build LLM prompt
       let prompt = `You are an expert automation engineer and code assistant.\n`;
-      prompt += `Here is the repo directory tree (depth 2):\n${dirTree}\n`;
-      if (pkgJson) prompt += `Here is package.json:\n${pkgJson}\n`;
-      for (const [file, content] of Object.entries(configs)) {
-        prompt += `Here is ${file}:\n${content}\n`;
+      if (ragContext) {
+        prompt += `\nRelevant code/document context (retrieved via semantic search):\n${ragContext}\n`;
+      } else {
+        prompt += `Here is the repo directory tree (depth 2):\n${dirTree}\n`;
+        if (pkgJson) prompt += `Here is package.json:\n${pkgJson}\n`;
+        for (const [file, content] of Object.entries(configs)) {
+          prompt += `Here is ${file}:\n${content}\n`;
+        }
       }
       prompt += `\nUser asked: \"${message}\"\n`;
       prompt += `\nPlease answer in the following format, always including all sections, even if you have to say 'None' or 'No code needed':\n\nExplanation:\n<your explanation>\n\nCommand:\n<shell command, if any>\n\nCode:\n<code, if any>\n\nRisky:\n<yes/no>\n`;
       prompt += `\nExample:\nExplanation:\nTo run all tests, use the test script defined in package.json.\n\nCommand:\nnpm test\n\nCode:\nNo additional code is required.\n\nRisky:\nno\n`;
 
-      // 4. Call LLM (Ollama)
+      // 5. Call LLM (Ollama)
       const ollama = require('../../../ai-layer/src/integrations/OllamaClient');
       const config = { model: process.env['OLLAMA_MODEL'] || 'llama3' };
       const ollamaClient = new ollama.OllamaClient(config);
@@ -165,13 +186,18 @@ export class AIService {
       } else if (command && risky) {
         actionResult = `⚠️ Risky command proposed: ${command}. User confirmation required.`;
       }
+      let userMessage = explanation + (actionResult ? `\n\n${actionResult}` : '') + (code ? `\n\nProposed code:\n${code}` : '');
+      if (ragUsed) {
+        userMessage = '🔎 (Semantic context from your codebase was used to answer this question.)\n\n' + userMessage;
+      }
       // Store chat
-      await storeChatMessage(userId, repo.id.toString(), message, explanation + (actionResult ? `\n\n${actionResult}` : ''), command);
+      await storeChatMessage(userId, repo.id.toString(), message, userMessage, command);
       return {
-        message: explanation + (actionResult ? `\n\n${actionResult}` : '') + (code ? `\n\nProposed code:\n${code}` : ''),
+        message: userMessage,
         type: command ? (risky ? 'action' : 'command') : 'text',
         timestamp: new Date().toISOString(),
-        suggestions: []
+        suggestions: [],
+        ragUsed
       };
     } catch (error) {
       logger.error('Error processing AI chat message:', error);

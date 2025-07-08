@@ -24,12 +24,23 @@ export default function GitIntegrationPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [repoLinked, setRepoLinked] = useState(false); // TODO: Replace with real logic
+  const [ragStatus, setRagStatus] = useState<{ indexed: boolean; chunkCount?: number; message?: string } | null>(null);
+  const [reindexing, setReindexing] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     // Load current repo info
     fetchRepoInfo();
   }, []);
+
+  useEffect(() => {
+    if (repoInfo) {
+      fetchRagStatus();
+    } else {
+      setRagStatus(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repoInfo]);
 
   const fetchRepoInfo = async () => {
     try {
@@ -40,6 +51,16 @@ export default function GitIntegrationPage() {
       }
     } catch (error) {
       console.error('Failed to fetch repo info:', error);
+    }
+  };
+
+  const fetchRagStatus = async () => {
+    try {
+      const response = await fetch('/api/git/rag-status');
+      const data = await response.json();
+      setRagStatus(data);
+    } catch (err) {
+      setRagStatus({ indexed: false, message: 'Error fetching RAG status' });
     }
   };
 
@@ -92,6 +113,25 @@ export default function GitIntegrationPage() {
     }
   };
 
+  const handleReindex = async () => {
+    setReindexing(true);
+    setMessage('Re-indexing...');
+    try {
+      const response = await fetch('/api/git/rag-reindex', { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        setMessage('Re-indexed successfully!');
+        fetchRagStatus();
+      } else {
+        setMessage(data.message || 'Re-index failed');
+      }
+    } catch (err) {
+      setMessage('Re-index failed');
+    } finally {
+      setReindexing(false);
+    }
+  };
+
   if (repoLinked) {
     return <NoRepoLinked cta={false} />;
   }
@@ -127,6 +167,23 @@ export default function GitIntegrationPage() {
                   <strong>Last Sync:</strong> {new Date(repoInfo.lastSync).toLocaleString()}
                 </p>
               )}
+              {/* RAG Status UI */}
+              <div className="mt-2">
+                <span className="text-sm font-medium">RAG Index Status: </span>
+                {ragStatus === null ? (
+                  <span className="text-gray-500">Loading...</span>
+                ) : ragStatus.indexed ? (
+                  <span className="text-green-700">Indexed ({ragStatus.chunkCount} chunks)</span>
+                ) : (
+                  <span className="text-red-700">Not Indexed{ragStatus.message ? ` (${ragStatus.message})` : ''}</span>
+                )}
+                <Button size="sm" variant="outline" className="ml-2" onClick={fetchRagStatus} disabled={reindexing}>
+                  Refresh
+                </Button>
+                <Button size="sm" variant="outline" className="ml-2" onClick={handleReindex} disabled={reindexing}>
+                  {reindexing ? 'Re-indexing...' : 'Re-index'}
+                </Button>
+              </div>
               <Button 
                 onClick={handleUnlink} 
                 variant="outline" 

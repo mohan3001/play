@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { linkRepo, unlinkRepo, getLinkedRepo, getLinkedRepoPathForUser } from '../utils/repoUtils';
+import { getRepoChunksForEmbedding } from '../utils/repoUtils';
+import { upsertEmbeddings, deleteEmbeddingsForRepo } from '../utils/chromadb';
 const os = require('os');
 
 const router = express.Router();
@@ -128,6 +130,13 @@ router.post('/link', async (req, res) => {
     });
     // Fetch the updated repo to get updatedAt/createdAt
     const repo = await getLinkedRepo(userId);
+    // RAG: Index repo for semantic search
+    try {
+      const chunks = await getRepoChunksForEmbedding(localPath);
+      await upsertEmbeddings({ userId, repoId: userId, chunks });
+    } catch (err) {
+      console.error('RAG indexing failed:', err);
+    }
     return res.json({
       success: true,
       message: 'Repository linked successfully',
@@ -158,6 +167,12 @@ router.post('/unlink', async (req, res) => {
       }
     }
     await unlinkRepo(userId);
+    // RAG: Remove embeddings for this repo
+    try {
+      await deleteEmbeddingsForRepo(userId);
+    } catch (err) {
+      console.error('RAG cleanup failed:', err);
+    }
     return res.json({ success: true, message: 'Repository unlinked successfully' });
   } catch (error: any) {
     console.error('Error unlinking repository:', error);
@@ -176,6 +191,89 @@ router.get('/working-directory', async (req, res) => {
     workingDirectory: repoPath,
     type: 'local' // Assuming working directory is always local for now
   });
+});
+
+// RAG status endpoint
+router.get('/rag-status', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const repo = await getLinkedRepo(userId);
+    if (!repo || !repo.localPath) {
+      return res.status(404).json({ indexed: false, message: 'No repo linked' });
+    }
+    const { ChromaClient } = require('chromadb');
+    // @ts-ignore
+    const { OllamaEmbeddingFunction } = require('chromadb/dist/embedding_functions');
+    const CHROMA_URL = process.env['CHROMA_URL'] || 'http://localhost:8000';
+    const client = new ChromaClient({ path: CHROMA_URL });
+    const collectionName = `repo-${userId}`;
+    let collection;
+    try {
+      collection = await client.getCollection({ name: collectionName, embeddingFunction: new OllamaEmbeddingFunction({ url: (process.env['OLLAMA_HOST'] || 'http://localhost:11434') + '/api/embeddings', model: 'nomic-embed-text' }) });
+    } catch {
+      return res.json({ indexed: false, message: 'No RAG index found' });
+    }
+    const count = await collection.count();
+    // Optionally, you could store last indexed time in a DB or as metadata
+    return res.json({ indexed: true, chunkCount: count });
+  } catch (err) {
+    return res.status(500).json({ indexed: false, message: 'Error checking RAG status', error: err instanceof Error ? err.message : err });
+  }
+});
+
+// Force RAG re-index for the current user's linked repo
+router.post('/rag-reindex', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const repo = await getLinkedRepo(userId);
+    if (!repo || !repo.localPath) {
+      return res.status(404).json({ success: false, message: 'No repo linked' });
+    }
+    // Remove old index
+    try { await deleteEmbeddingsForRepo(userId); } catch {}
+    // Re-index
+    const chunks = await getRepoChunksForEmbedding(repo.localPath);
+    await upsertEmbeddings({ userId, repoId: userId, chunks });
+    return res.json({ success: true, message: 'Re-indexed successfully', chunkCount: chunks.length });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Error during re-index', error: err instanceof Error ? err.message : err });
+  }
+});
+
+// Admin: List all indexed repos and their chunk counts
+router.get('/rag-admin-list', async (req, res) => {
+  try {
+    const { ChromaClient } = require('chromadb');
+    // @ts-ignore
+    const { OllamaEmbeddingFunction } = require('chromadb/dist/embedding_functions');
+    const CHROMA_URL = process.env['CHROMA_URL'] || 'http://localhost:8000';
+    const client = new ChromaClient({ path: CHROMA_URL });
+    const collections = await client.listCollections();
+    const results = [];
+    for (const col of collections) {
+      let count = 0;
+      try {
+        const collection = await client.getCollection({ name: col.name, embeddingFunction: new OllamaEmbeddingFunction({ url: (process.env['OLLAMA_HOST'] || 'http://localhost:11434') + '/api/embeddings', model: 'nomic-embed-text' }) });
+        count = await collection.count();
+      } catch {}
+      results.push({ name: col.name, chunkCount: count });
+    }
+    return res.json({ repos: results });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error listing indexed repos', error: err instanceof Error ? err.message : err });
+  }
+});
+
+// Admin: Force cleanup for a given userId (repoId)
+router.post('/rag-admin-cleanup', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ success: false, message: 'userId required' });
+    await deleteEmbeddingsForRepo(userId);
+    return res.json({ success: true, message: `Cleaned up RAG index for userId ${userId}` });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Error during cleanup', error: err instanceof Error ? err.message : err });
+  }
 });
 
 export default router; 
