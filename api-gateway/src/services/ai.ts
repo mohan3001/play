@@ -86,60 +86,92 @@ export class AIService {
         return { message: 'No Playwright repo linked. Please link a repo first.', type: 'error', timestamp: new Date().toISOString() };
       }
 
-      // 2. Extract repo metadata
-      const metadata = await extractRepoMetadata(repo.localPath);
-
-      // 3. Retrieve chat history from ChromaDB
-      const chatHistory = await getChatHistory(userId, repo.id.toString(), 10) as any[];
-      const historyText = chatHistory.map((h: any) => `User: ${h.message}\nAI: ${h.response}`).join('\n');
-
-      // 4. Build prompt with action instructions (for LLM, not CLI)
-      // const prompt = `...`;
-
-      // 5. Send only the user's message to the CLI
-      const aiLayerPath = path.join(process.cwd(), '..', 'ai-layer');
-      let aiResponse = await this.runCommandInAILayer(message, aiLayerPath);
-      let actionResult = '';
-      let actionObj = null;
-      let suggestions: string[] = [];
-      
-      // Extract suggestions from CLI output
-      const suggestionsMatch = aiResponse.match(/💡 Suggested next questions:\n((?:   \d+\. .*\n?)*)/);
-      if (suggestionsMatch && suggestionsMatch[1]) {
-        const suggestionsText = suggestionsMatch[1];
-        suggestions = suggestionsText
-          .split('\n')
-          .filter(line => line.trim())
-          .map(line => line.replace(/^\s*\d+\.\s*/, '').trim())
-          .filter(suggestion => suggestion.length > 0);
-        
-        // Remove suggestions from the main response
-        aiResponse = aiResponse.replace(/💡 Suggested next questions:\n((?:   \d+\. .*\n?)*)/, '').trim();
-      }
-      
-      try {
-        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          actionObj = JSON.parse(jsonMatch[0]);
-          if (actionObj.action) {
-            // Call the appropriate handler based on actionObj.action
-            actionResult = await handleAIAction(actionObj, repo, userId);
-          }
-          if (actionObj.suggestions) {
-            suggestions = actionObj.suggestions;
+      // 2. Gather repo context
+      const fs = require('fs');
+      const path = require('path');
+      const repoPath = repo.localPath;
+      // Directory tree (depth 2)
+      function getDirTree(dir: string, depth = 2, prefix = ''): string {
+        if (depth < 0) return '';
+        let tree = '';
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          if (item.startsWith('.')) continue;
+          const fullPath = path.join(dir, item);
+          const stat = fs.statSync(fullPath);
+          tree += `${prefix}- ${item}`;
+          if (stat.isDirectory()) {
+            tree += '/\n';
+            tree += getDirTree(fullPath, depth - 1, prefix + '  ');
+          } else {
+            tree += '\n';
           }
         }
-      } catch (err) {
-        // Not a structured action, treat as plain text
+        return tree;
+      }
+      const dirTree = getDirTree(repoPath, 2);
+      // package.json
+      let pkgJson = '';
+      const pkgPath = path.join(repoPath, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        pkgJson = fs.readFileSync(pkgPath, 'utf8');
+      }
+      // Key configs
+      const configs: Record<string, string> = {};
+      const configFiles = ['playwright.config.ts', 'playwright.config.js', 'jest.config.js', 'cucumber.js', 'README.md'];
+      for (const file of configFiles) {
+        const filePath = path.join(repoPath, file);
+        if (fs.existsSync(filePath)) {
+          configs[file] = fs.readFileSync(filePath, 'utf8');
+        }
       }
 
-      await storeChatMessage(userId, repo.id.toString(), message, aiResponse, actionObj?.action);
+      // 3. Build LLM prompt
+      let prompt = `You are an expert automation engineer and code assistant.\n`;
+      prompt += `Here is the repo directory tree (depth 2):\n${dirTree}\n`;
+      if (pkgJson) prompt += `Here is package.json:\n${pkgJson}\n`;
+      for (const [file, content] of Object.entries(configs)) {
+        prompt += `Here is ${file}:\n${content}\n`;
+      }
+      prompt += `\nUser asked: \"${message}\"\n`;
+      prompt += `\nPlease answer in the following format, always including all sections, even if you have to say 'None' or 'No code needed':\n\nExplanation:\n<your explanation>\n\nCommand:\n<shell command, if any>\n\nCode:\n<code, if any>\n\nRisky:\n<yes/no>\n`;
+      prompt += `\nExample:\nExplanation:\nTo run all tests, use the test script defined in package.json.\n\nCommand:\nnpm test\n\nCode:\nNo additional code is required.\n\nRisky:\nno\n`;
 
+      // 4. Call LLM (Ollama)
+      const ollama = require('../../../ai-layer/src/integrations/OllamaClient');
+      const config = { model: process.env['OLLAMA_MODEL'] || 'llama3' };
+      const ollamaClient = new ollama.OllamaClient(config);
+      const llmResult = await ollamaClient.generate(prompt);
+      const llmResponse = llmResult.code;
+      // Parse LLM response
+      const explanationMatch = llmResponse.match(/Explanation:\n([\s\S]*?)\n\nCommand:/);
+      const commandMatch = llmResponse.match(/Command:\n([\s\S]*?)\n\nCode:/);
+      const codeMatch = llmResponse.match(/Code:\n([\s\S]*?)\n\nRisky:/);
+      const riskyMatch = llmResponse.match(/Risky:\n([\s\S]*?)\n/);
+      const explanation = explanationMatch ? explanationMatch[1].trim() : llmResponse.trim();
+      const command = commandMatch ? commandMatch[1].trim() : '';
+      const code = codeMatch ? codeMatch[1].trim() : '';
+      const risky = riskyMatch ? riskyMatch[1].trim().toLowerCase() === 'yes' : false;
+
+      let actionResult = '';
+      if (command && !risky && ['npm test', 'npx playwright test', 'npx jest', 'npx cucumber-js'].some(cmd => command.startsWith(cmd))) {
+        // Safe command, execute
+        try {
+          const execSync = require('child_process').execSync;
+          actionResult = execSync(command, { cwd: repoPath, encoding: 'utf8' });
+        } catch (err) {
+          actionResult = `❌ Error running command: ${err instanceof Error ? err.message : err}`;
+        }
+      } else if (command && risky) {
+        actionResult = `⚠️ Risky command proposed: ${command}. User confirmation required.`;
+      }
+      // Store chat
+      await storeChatMessage(userId, repo.id.toString(), message, explanation + (actionResult ? `\n\n${actionResult}` : ''), command);
       return {
-        message: aiResponse + (actionResult ? `\n\nAction Result:\n${actionResult}` : ''),
-        type: actionObj?.action ? 'action' : 'text',
+        message: explanation + (actionResult ? `\n\n${actionResult}` : '') + (code ? `\n\nProposed code:\n${code}` : ''),
+        type: command ? (risky ? 'action' : 'command') : 'text',
         timestamp: new Date().toISOString(),
-        suggestions: suggestions
+        suggestions: []
       };
     } catch (error) {
       logger.error('Error processing AI chat message:', error);

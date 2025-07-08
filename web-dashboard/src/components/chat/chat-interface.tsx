@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Send, Bot, User, Loader2, Sparkles, FileText, Play, GitBranch } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { apiClient, AIResponse } from "@/lib/api"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Copy } from "lucide-react"
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { duotoneSpace } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 
 // Update Message['type'] to match backend response types
 interface Message {
@@ -96,6 +100,11 @@ export function ChatInterface({ className, onActionResult, onError }: ChatInterf
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const suggestions = getSuggestions(messages, isLoading)
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  const [pendingExplanation, setPendingExplanation] = useState<string | null>(null);
+  const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
+  const [pendingCode, setPendingCode] = useState<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -199,8 +208,60 @@ export function ChatInterface({ className, onActionResult, onError }: ChatInterf
     setInputValue(suggestion);
   };
 
+  // Confirmation handler
+  const handleApprove = async () => {
+    if (pendingCommand) {
+      setShowConfirm(false);
+      setIsLoading(true);
+      // Send approval to backend (simulate as a new message)
+      const sessionId = 'web-dashboard-session';
+      const approvalMsg = `User approved: ${pendingCommand}`;
+      const response = await apiClient.sendChatMessage(approvalMsg, sessionId);
+      const aiResponse: Message = {
+        id: (Date.now() + 2).toString(),
+        type: response.type as Message['type'],
+        content: response.message,
+        timestamp: new Date(),
+        isSpecialCommand: false,
+        actionResult: '',
+        suggestions: response.suggestions || []
+      };
+      setMessages(prev => [...prev, aiResponse]);
+      setIsLoading(false);
+      setPendingCommand(null);
+      setPendingExplanation(null);
+      setPendingMessageId(null);
+    }
+  };
+  const handleReject = () => {
+    setShowConfirm(false);
+    setPendingCommand(null);
+    setPendingExplanation(null);
+    setPendingMessageId(null);
+  };
+
   return (
     <Card className={cn("h-full flex flex-col", className)}>
+      {/* Confirmation Dialog for Risky Actions */}
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>⚠️ Risky Command Confirmation</DialogTitle>
+          </DialogHeader>
+          <div className="mb-2">
+            <div className="font-semibold">Explanation:</div>
+            <div className="text-sm whitespace-pre-line">{pendingExplanation}</div>
+          </div>
+          <div className="mb-2">
+            <div className="font-semibold">Proposed Command:</div>
+            <div className="bg-gray-100 rounded px-2 py-1 font-mono text-sm">{pendingCommand}</div>
+          </div>
+          <DialogFooter>
+            <Button variant="destructive" onClick={handleReject}>Reject</Button>
+            <Button variant="success" onClick={handleApprove}>Approve & Run</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <CardHeader className="border-b">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -213,68 +274,104 @@ export function ChatInterface({ className, onActionResult, onError }: ChatInterf
       <CardContent className="flex-1 flex flex-col p-0">
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                "flex gap-3",
-                message.type === 'user' ? 'justify-end' : 'justify-start'
-              )}
-            >
-              {message.type === 'ai' && (
-                <div className="flex items-start gap-2">
-                  <Bot className="h-5 w-5 text-blue-600" />
-                  <div className="bg-gray-100 rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
-                    {message.content}
-                    {message.suggestions && message.suggestions.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="text-sm text-gray-600 mb-2">💡 Suggested next questions:</div>
-                        <div className="flex flex-wrap gap-1">
-                          {message.suggestions.map((suggestion, index) => (
-                            <Button
-                              key={index}
-                              variant="outline"
-                              size="sm"
-                              className="text-xs"
-                              onClick={() => handleSuggestionClick(suggestion)}
-                            >
-                              {suggestion}
-                            </Button>
-                          ))}
+          {messages.map((message) => {
+            // Detect risky action and show confirmation dialog
+            if (
+              message.type === 'action' &&
+              message.content.includes('⚠️ Risky command proposed:') &&
+              !showConfirm &&
+              pendingMessageId !== message.id
+            ) {
+              // Extract command and explanation
+              const commandMatch = message.content.match(/⚠️ Risky command proposed: (.*)\. User confirmation required\./);
+              const explanationMatch = message.content.match(/([\s\S]*?)\n\n⚠️ Risky command proposed:/);
+              setPendingCommand(commandMatch ? commandMatch[1] : '');
+              setPendingExplanation(explanationMatch ? explanationMatch[1].trim() : '');
+              setPendingMessageId(message.id);
+              setShowConfirm(true);
+            }
+            // Detect code preview
+            let codeBlock = null;
+            if (message.content.includes('Proposed code:')) {
+              const codeMatch = message.content.match(/Proposed code:\n([\s\S]*)/);
+              if (codeMatch) {
+                codeBlock = (
+                  <div className="mt-3">
+                    <div className="text-xs text-gray-500 mb-1">Proposed code:</div>
+                    <SyntaxHighlighter language="typescript" style={duotoneSpace} customStyle={{ borderRadius: 6, fontSize: 13 }}>
+                      {codeMatch[1]}
+                    </SyntaxHighlighter>
+                    <Button variant="ghost" size="sm" className="mt-1" onClick={() => navigator.clipboard.writeText(codeMatch[1])}>
+                      <Copy className="h-4 w-4 mr-1 inline" /> Copy
+                    </Button>
+                  </div>
+                );
+              }
+            }
+            return (
+              <div
+                key={message.id}
+                className={cn(
+                  "flex gap-3",
+                  message.type === 'user' ? 'justify-end' : 'justify-start'
+                )}
+              >
+                {message.type === 'ai' && (
+                  <div className="flex items-start gap-2">
+                    <Bot className="h-5 w-5 text-blue-600" />
+                    <div className="bg-gray-100 rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
+                      {message.content}
+                      {message.suggestions && message.suggestions.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="text-sm text-gray-600 mb-2">💡 Suggested next questions:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {message.suggestions.map((suggestion, index) => (
+                              <Button
+                                key={index}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => handleSuggestionClick(suggestion)}
+                              >
+                                {suggestion}
+                              </Button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-              {message.type === 'action' && (
-                <div className="flex items-start gap-2">
-                  <Sparkles className="h-5 w-5 text-green-600" />
-                  <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
-                    <Badge variant="success">Action</Badge>
-                    <div>{message.content}</div>
-                    {message.actionResult && <div className="mt-2 text-green-700">{message.actionResult}</div>}
+                )}
+                {message.type === 'action' && (
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="h-5 w-5 text-green-600" />
+                    <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
+                      <Badge variant="success">Action</Badge>
+                      <div>{message.content}</div>
+                      {message.actionResult && <div className="mt-2 text-green-700">{message.actionResult}</div>}
+                      {codeBlock}
+                    </div>
                   </div>
-                </div>
-              )}
-              {message.type === 'error' && (
-                <div className="flex items-start gap-2">
-                  <Loader2 className="h-5 w-5 text-red-600 animate-spin" />
-                  <div className="bg-red-50 border-l-4 border-red-400 rounded-lg px-4 py-2 max-w-xl text-red-700">
-                    {message.content}
+                )}
+                {message.type === 'error' && (
+                  <div className="flex items-start gap-2">
+                    <Loader2 className="h-5 w-5 text-red-600 animate-spin" />
+                    <div className="bg-red-50 border-l-4 border-red-400 rounded-lg px-4 py-2 max-w-xl text-red-700">
+                      {message.content}
+                    </div>
                   </div>
-                </div>
-              )}
-              {message.type === 'user' && (
-                <div className="flex items-end gap-2">
-                  <div className="bg-blue-600 text-white rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
-                    {message.content}
+                )}
+                {message.type === 'user' && (
+                  <div className="flex items-end gap-2">
+                    <div className="bg-blue-600 text-white rounded-lg px-4 py-2 max-w-xl whitespace-pre-line">
+                      {message.content}
+                    </div>
+                    <User className="h-5 w-5 text-blue-600" />
                   </div>
-                  <User className="h-5 w-5 text-blue-600" />
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
           {isLoading && (
             <div className="flex gap-3 justify-start">
               <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
