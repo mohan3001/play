@@ -413,4 +413,48 @@ router.post('/rag-query', async (req, res) => {
   }
 });
 
+// --- File Content Retrieval ---
+router.get('/file', async (req, res) => {
+  const userId = getUserId(req);
+  const repoRoot = await getLinkedRepoPathForUser(userId);
+  if (!repoRoot) return res.status(404).json({ error: 'No linked repo' });
+  const relPath = req.query['path'] as string;
+  if (!relPath) return res.status(400).json({ error: 'Missing path' });
+  const absPath = path.resolve(repoRoot, relPath);
+  if (!absPath.startsWith(repoRoot)) return res.status(403).json({ error: 'Path outside repo' });
+  if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) return res.status(404).json({ error: 'File not found' });
+  const content = fs.readFileSync(absPath, 'utf8');
+  return res.json({ path: relPath, content });
+});
+
+// --- Directory Listing ---
+router.get('/dir', async (req, res) => {
+  const userId = getUserId(req);
+  const repoRoot = await getLinkedRepoPathForUser(userId);
+  if (!repoRoot) return res.status(404).json({ error: 'No linked repo' });
+  const relPath = req.query['path'] as string || '.';
+  const absPath = path.resolve(repoRoot, relPath);
+  if (!absPath.startsWith(repoRoot)) return res.status(403).json({ error: 'Path outside repo' });
+  if (!fs.existsSync(absPath) || !fs.statSync(absPath).isDirectory()) return res.status(404).json({ error: 'Directory not found' });
+  const files = fs.readdirSync(absPath).map(f => {
+    const stat = fs.statSync(path.join(absPath, f));
+    return { name: f, isDir: stat.isDirectory(), size: stat.size };
+  });
+  return res.json({ path: relPath, files });
+});
+
+// --- Full Codebase Review ---
+router.post('/codebase-review', async (req, res) => {
+  const userId = getUserId(req);
+  const repoRoot = await getLinkedRepoPathForUser(userId);
+  if (!repoRoot) return res.status(404).json({ error: 'No linked repo' });
+  try {
+    // Call service to traverse repo, batch files, and get LLM review (to be implemented)
+    const { review, errors } = await req.app.get('services').ai.codebaseReview(repoRoot, req.body || {});
+    return res.json({ success: true, review, errors });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router; 

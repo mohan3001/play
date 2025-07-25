@@ -6,6 +6,7 @@ export interface AIResponse {
   data?: any
   timestamp: string
   suggestions?: string[]
+  ragUsed?: boolean // Add this line for RAG context indicator
 }
 
 export interface TestExecutionOptions {

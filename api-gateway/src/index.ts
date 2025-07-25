@@ -79,6 +79,9 @@ app.use('/api/git', gitRoutes)
 const aiService = new AIService()
 const testExecutionService = new TestExecutionService()
 
+// Attach services to app for route access
+app.set('services', { ai: aiService, testExecution: testExecutionService });
+
 // WebSocket event handlers
 io.on('connection', (socket) => {
   logger.info(`Client connected: ${socket.id}`)

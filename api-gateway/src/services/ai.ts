@@ -88,17 +88,23 @@ export class AIService {
       }
 
       let ragUsed = false;
-      // 2. RAG: Retrieve top-5 relevant chunks from embeddings
+      // 2. RAG: Retrieve top-20 relevant chunks from embeddings
       let ragContext = '';
       try {
-        const ragResults = await queryEmbeddings({ repoId: userId, query: message, topK: 5 });
-        if (ragResults && ragResults.documents && ragResults.documents[0]) {
-          ragContext = ragResults.documents[0].map((doc: string | null, i: number) => {
+        const ragResults = await queryEmbeddings({ repoId: userId, query: message, topK: 20 });
+        const anyRagResults = ragResults as any;
+        if (anyRagResults && anyRagResults.documents && anyRagResults.documents[0]) {
+          ragContext = anyRagResults.documents[0].map((doc: string | null, i: number) => {
             if (!doc) return '';
-            const meta = ragResults.metadatas && ragResults.metadatas[0] ? ragResults.metadatas[0][i] : undefined;
+            const meta = anyRagResults.metadatas && anyRagResults.metadatas[0] ? anyRagResults.metadatas[0][i] : undefined;
             if (!meta) return doc;
             return `File: ${meta['filePath']} (lines ${meta['startLine']}-${meta['endLine']}):\n${doc}`;
           }).filter(Boolean).join('\n\n');
+          // Limit context to ~100,000 characters (~25k tokens)
+          const MAX_CONTEXT_CHARS = 100000;
+          if (ragContext.length > MAX_CONTEXT_CHARS) {
+            ragContext = ragContext.slice(0, MAX_CONTEXT_CHARS) + '\n... [context truncated]';
+          }
           if (ragContext.trim().length > 0) ragUsed = true;
         }
       } catch (err) {
@@ -157,6 +163,11 @@ export class AIService {
       prompt += `\nUser asked: \"${message}\"\n`;
       prompt += `\nPlease answer in the following format, always including all sections, even if you have to say 'None' or 'No code needed':\n\nExplanation:\n<your explanation>\n\nCommand:\n<shell command, if any>\n\nCode:\n<code, if any>\n\nRisky:\n<yes/no>\n`;
       prompt += `\nExample:\nExplanation:\nTo run all tests, use the test script defined in package.json.\n\nCommand:\nnpm test\n\nCode:\nNo additional code is required.\n\nRisky:\nno\n`;
+      // Final safeguard: truncate prompt to 100,000 chars
+      const MAX_PROMPT_CHARS = 100000;
+      if (prompt.length > MAX_PROMPT_CHARS) {
+        prompt = prompt.slice(0, MAX_PROMPT_CHARS) + '\n... [prompt truncated]';
+      }
 
       // 5. Call LLM (Ollama)
       const ollama = require('../../../ai-layer/src/integrations/OllamaClient');
@@ -282,5 +293,83 @@ export class AIService {
       logger.error('AI health check failed:', error)
       return false
     }
+  }
+
+  // --- Full Codebase Review ---
+  public async codebaseReview(repoRoot: string, opts: any): Promise<{ review: any[], errors: any[] }> {
+    const fs = require('fs');
+    const path = require('path');
+    const allowedExts = ['.js', '.ts', '.tsx', '.jsx', '.json', '.md', '.feature', '.test', '.spec', '.txt'];
+    const files: string[] = [];
+    const errors: any[] = [];
+    // Recursively walk repo
+    function walk(dir: string) {
+      if (dir.includes('node_modules')) return;
+      const entries = fs.readdirSync(dir);
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry);
+        if (fullPath.includes('node_modules')) continue;
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+          walk(fullPath);
+        } else if (stat.isFile() && allowedExts.includes(path.extname(entry))) {
+          files.push(fullPath);
+        }
+      }
+    }
+    walk(repoRoot);
+    // Batch files (10 per batch)
+    const batchSize = 3;
+    const review: any[] = [];
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize);
+      let prompt = `You are an expert QA/SDET/BA code reviewer. For each file below, provide:\n- A concise summary of its purpose and main logic.\n- Pros (good practices, strengths).\n- Cons (weaknesses, anti-patterns).\n- Code smells or security issues.\n- Suggestions for improvement.\n- If the file is a test, comment on test coverage and style.\n\nRespond in strict JSON format as an array, one object per file, with these fields: file, summary, pros, cons, codeSmells, suggestions.\n\nIMPORTANT: Your output MUST be valid JSON. It will be parsed by a machine. If you do not return valid JSON, your answer will be rejected. Do NOT include any explanation or commentary outside the JSON.\n\nExample:\n[\n  {\n    \"file\": \"src/example.ts\",\n    \"summary\": \"...\",\n    \"pros\": [\"...\"],\n    \"cons\": [\"...\"],\n    \"codeSmells\": [\"...\"],\n    \"suggestions\": [\"...\"]\n  }\n]\n`;
+      for (const file of batch) {
+        try {
+          const rel = path.relative(repoRoot, file);
+          const content = fs.readFileSync(file, 'utf8');
+          prompt += `\nFile: ${rel}\nContent:\n${content}\n`;
+        } catch (err) {
+          errors.push({ file, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      // Truncate prompt if too long
+      const MAX_PROMPT_CHARS = 100000;
+      if (prompt.length > MAX_PROMPT_CHARS) {
+        prompt = prompt.slice(0, MAX_PROMPT_CHARS) + '\n... [truncated]';
+      }
+      // Call LLM (Ollama)
+      try {
+        const ollama = require('../../../ai-layer/src/integrations/OllamaClient');
+        const config = { model: process.env['OLLAMA_MODEL'] || 'llama3' };
+        const ollamaClient = new ollama.OllamaClient(config);
+        const llmResult = await ollamaClient.generate(prompt);
+        let parsed;
+        try {
+          parsed = JSON.parse(llmResult.code || llmResult.text || llmResult.result || llmResult);
+        } catch (jsonErr) {
+          // Fallback: try to extract file-by-file sections and convert to JSON
+          const raw = llmResult.code || llmResult.text || llmResult.result || llmResult;
+          const fallback = [];
+          const fileSections = raw.split(/File: /g).slice(1);
+          for (const section of fileSections) {
+            const lines = section.split('\n');
+            const file = lines[0].trim();
+            const summary = (section.match(/Summary:(.*?)(Pros:|$)/s) || [])[1]?.trim() || '';
+            const pros = (section.match(/Pros:(.*?)(Cons:|$)/s) || [])[1]?.split(/\n|\*/).map((s: string) => s.trim()).filter(Boolean) || [];
+            const cons = (section.match(/Cons:(.*?)(Code Smells:|$)/s) || [])[1]?.split(/\n|\*/).map((s: string) => s.trim()).filter(Boolean) || [];
+            const codeSmells = (section.match(/Code Smells:(.*?)(Suggestions:|$)/s) || [])[1]?.split(/\n|\*/).map((s: string) => s.trim()).filter(Boolean) || [];
+            const suggestions = (section.match(/Suggestions:(.*?)(\n|$)/s) || [])[1]?.split(/\n|\*/).map((s: string) => s.trim()).filter(Boolean) || [];
+            fallback.push({ file, summary, pros, cons, codeSmells, suggestions });
+          }
+          parsed = fallback.length > 0 ? fallback : null;
+          errors.push({ batch: batch.map(f => path.relative(repoRoot, f)), error: 'Failed to parse JSON from LLM, used fallback parser', raw });
+        }
+        review.push({ batch: batch.map(f => path.relative(repoRoot, f)), result: parsed });
+      } catch (err) {
+        errors.push({ batch: batch.map(f => path.relative(repoRoot, f)), error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return { review, errors };
   }
 } 
